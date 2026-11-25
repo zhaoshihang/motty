@@ -44,7 +44,13 @@ if ($env:VSCMD_ARG_TGT_ARCH -ne $Architecture -or !(Get-Command cl.exe -ErrorAct
 }
 if ($CertificateThumbprint) {
     if ($CertificateThumbprint -notmatch '^[0-9a-fA-F]{40}$') { throw 'Invalid signing certificate thumbprint.' }
-    $certificate = Get-Item -LiteralPath ("Cert:\CurrentUser\My\" + $CertificateThumbprint)
+    $store = [Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+    $store.Open('ReadOnly')
+    try {
+        $matchesByThumbprint = $store.Certificates.Find('FindByThumbprint', $CertificateThumbprint, $false)
+        if ($matchesByThumbprint.Count -ne 1) { throw 'The signing certificate was not found in CurrentUser\My.' }
+        $certificate = $matchesByThumbprint[0]
+    } finally { $store.Close() }
     $Publisher = $certificate.Subject
 }
 

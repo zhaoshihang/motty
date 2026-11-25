@@ -42,10 +42,38 @@ function Invoke-GitHub([string]$method, [string]$route, $body) {
     Invoke-RestMethod @options
 }
 
+function Invoke-WithInput([string]$program, [string[]]$arguments, [string]$data) {
+    # Windows PowerShell can prefix a native pipeline with a UTF-8 BOM. Write
+    # the exact credential protocol or recovery key bytes to a redirected pipe.
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $program
+    $start.Arguments = (($arguments | ForEach-Object {
+        if ($_.Contains('"') -or $_.EndsWith('\')) { throw 'Invalid command argument.' }
+        '"' + $_ + '"'
+    }) -join ' ')
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $originalEncoding = [Console]::InputEncoding
+    try {
+        [Console]::InputEncoding = $utf8
+        $process = [Diagnostics.Process]::Start($start)
+    } finally { [Console]::InputEncoding = $originalEncoding }
+    try {
+        $output = $process.StandardOutput.ReadToEndAsync()
+        $bytes = $utf8.GetBytes($data)
+        $pipe = $process.StandardInput.BaseStream
+        $pipe.Write($bytes, 0, $bytes.Length)
+        $pipe.Close()
+        $process.WaitForExit()
+        if ($process.ExitCode -ne 0) { throw "$program exited with code $($process.ExitCode)." }
+        $output.GetAwaiter().GetResult()
+    } finally { $process.Dispose() }
+}
+
 function Invoke-Settings([string]$operation, [string]$file) {
-    # Piping stdout also waits for a Windows GUI-subsystem executable.
-    $output = $profileData.key | & $Motty settings-backup $operation $Database $file | Out-String
-    if ($LASTEXITCODE -ne 0) { throw "Motty settings $operation failed." }
+    $output = Invoke-WithInput $Motty @('settings-backup', $operation, $Database, $file) ($profileData.key + [char]10)
     if ($output.Trim()) { Write-Output $output.Trim() }
 }
 
@@ -72,8 +100,7 @@ try {
     $env:GIT_TERMINAL_PROMPT = '0'
     $env:GCM_INTERACTIVE = 'never'
     $request = "protocol=https`nhost=github.com`n`n"
-    $credential = $request | git -c credential.interactive=false credential fill
-    if ($LASTEXITCODE -ne 0) { throw 'Sign in to GitHub with Git Credential Manager first.' }
+    $credential = (Invoke-WithInput 'git.exe' @('-c', 'credential.interactive=false', 'credential', 'fill') $request) -split '\r?\n'
     $line = $credential | Where-Object { $_.StartsWith('password=') } | Select-Object -First 1
     if (!$line) { throw 'Git did not return a GitHub credential.' }
     $headers = @{'Authorization'=('Bearer ' + $line.Substring(9)); 'User-Agent'='Motty-settings-backup'; 'Accept'='application/vnd.github+json'}

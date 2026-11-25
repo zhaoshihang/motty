@@ -3,7 +3,7 @@
 # optionally upload them to a GitHub release.
 #
 #   tools/release.sh [--ref REF] [--out DIR] [--platforms mac,linux,windows]
-#                    [--installer FILE] [--viva-ref REF]
+#                    [--installer FILE] [--viva-ref REF] [--strict]
 #                    [--upload TAG [--notes FILE]]
 #   tools/release.sh --sums TAG --expect-viva SHA
 #   tools/release.sh --verify TAG --expect-viva SHA
@@ -66,6 +66,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 ref=HEAD viva_ref=main out="" installer="" tag="" notes="" sums_tag="" platforms=""
 verify_tag="" check_dir="" check_version="" pubkey="" expect_viva=""
+strict=0
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--ref) ref=$2; shift 2 ;;
@@ -73,6 +74,7 @@ while [ $# -gt 0 ]; do
 	--out) out=$2; shift 2 ;;
 	--platforms) platforms=$2; shift 2 ;;
 	--installer) installer=$2; shift 2 ;;
+	--strict) strict=1; shift ;;
 	--upload) tag=$2; shift 2 ;;
 	--notes) notes=$2; shift 2 ;;
 	--sums) sums_tag=$2; shift 2 ;;
@@ -185,7 +187,6 @@ check_release_body() {
 
 # A run that is going to upload must produce the whole matrix: a missing package
 # would otherwise be published as a release nobody can install from.
-strict=0
 [ -z "$tag" ] || strict=1
 
 if [ -n "$check_dir" ]; then
