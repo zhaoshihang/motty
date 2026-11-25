@@ -1,6 +1,7 @@
 package workbench
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/vivaui/viva/gfx"
@@ -28,6 +29,7 @@ func init() {
 	} {
 		menuRowIDs[id] = true
 	}
+	menuRowIDs[hitSFTPRemoteEditor] = true
 	for _, id := range hitTerminalMenuAction {
 		menuRowIDs[id] = true
 	}
@@ -235,7 +237,12 @@ func menuLabelOf(state *State, id gfx.ID) string {
 	w := m.SFTPWindow
 	switch id {
 	case hitSFTPMenuOpen:
+		if menuHasRow(state, t.EditRemoteFile) {
+			return t.EditRemoteFile
+		}
 		return m.SFTPOpen
+	case hitSFTPRemoteEditor:
+		return fmt.Sprintf(t.FilesEditorOpenFmt, editorVSCode.name(t))
 	case hitSFTPMenuDownload:
 		return m.SFTPDownload
 	case hitSFTPMenuDownloadHere:

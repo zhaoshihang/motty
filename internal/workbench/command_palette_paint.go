@@ -21,8 +21,8 @@ const (
 	// commandPaletteWidth is the dialog's content width, the palette's ever since
 	// the new-tab picker shared it.
 	commandPaletteWidth = 620
-	// commandPaletteSortWidth is the default/workspaces/recent switch's width.
-	commandPaletteSortWidth = 270
+	// commandPaletteSortWidth fits the four tabs beside the dialog title.
+	commandPaletteSortWidth = 350
 	// commandPaletteSortGap is the space between the switch and the close button.
 	commandPaletteSortGap = 8
 )
@@ -63,7 +63,9 @@ func (state *State) declareCommandPalette(c ui.C) {
 	contentWidth := max(min(float32(commandPaletteWidth), c.Bounds().Width-32), 0)
 	headerHeight := metricsNow.FontSizeM + 2 + 1
 	palette.bodyWidth = max(contentWidth-2*padding, 0)
-	palette.sortLeft = contentWidth - metricsNow.PadSurface - metricsNow.ControlHeight - commandPaletteSortWidth - commandPaletteSortGap - padding
+	sortRight := contentWidth - metricsNow.PadSurface - metricsNow.ControlHeight - commandPaletteSortGap - padding
+	palette.sortWidth = min(float32(commandPaletteSortWidth), max(sortRight-86, 0))
+	palette.sortLeft = sortRight - palette.sortWidth
 	palette.sortTop = -(headerHeight + 4*metricsNow.GapItem)
 	palette.sortHeight = metricsNow.ControlHeight
 	// The palette is a dialog's peer: on its own layer it paints over a terminal's
@@ -91,8 +93,11 @@ func (state *State) commandPaletteTexts() (title, placeholder, empty string) {
 	switch {
 	case state.commandPalette.connect:
 		title, placeholder, empty = m.LabelNewTab, m.NewTabPickerPlaceholder, m.NewTabPickerEmpty
-		if state.commandPalette.workspaces {
+		switch state.commandPalette.sort {
+		case connectSortWorkspaces:
 			placeholder, empty = m.NewTabWorkspacePlaceholder, m.WorkspaceLibraryEmpty
+		case connectSortShortcuts:
+			placeholder, empty = m.LocalShortcuts.Search, m.LocalShortcuts.Empty
 		}
 	case state.commandPalette.snippets:
 		title, placeholder, empty = m.Tools.SnippetsTitle, m.Tools.SnippetPickerPlaceholder, m.Tools.SnippetPickerEmpty
@@ -131,8 +136,16 @@ func (state *State) declareCommandPaletteBody(c ui.C) {
 				ui.Spacer(c).Height(6).Shrink(0)
 			}
 		}
-		ui.TextFieldID(c, hitCommandPaletteSearch, &palette.searchField, palette.searchLabel, palette.searchPlace).
-			Height(36).FillWidth().Shrink(0).NavigationKeys()
+		if palette.connect && palette.sort == connectSortShortcuts {
+			ui.Row(c).Height(36).FillWidth().Shrink(0).Gap(8).Children(func() {
+				ui.TextFieldID(c, hitCommandPaletteSearch, &palette.searchField, palette.searchLabel, palette.searchPlace).Height(36).Grow(1).NavigationKeys()
+				label := state.messages.LocalShortcuts.Add
+				ui.Button(c, label).Outline().Icon(lucideIcons[iconPlus]).Hit(hitConnectShortcutNew, label).Height(36).Shrink(0)
+			})
+		} else {
+			ui.TextFieldID(c, hitCommandPaletteSearch, &palette.searchField, palette.searchLabel, palette.searchPlace).
+				Height(36).FillWidth().Shrink(0).NavigationKeys()
+		}
 		if count == 0 {
 			palette.listRect = gfx.Rect{}
 			palette.scrollState = nil
@@ -290,7 +303,7 @@ func (state *State) declareCommandPaletteRow(c ui.C, entry commandPaletteEntry, 
 	// the pointer off the list and flashes the first row. Rows are not tab stops:
 	// the pointer and the arrows are the one way the selection moves, so Tab
 	// keeps its normal traversal.
-	row.HitOutset(2, 0, 2, 0).HitWith(id, entry.label, gfx.HitOptions{Role: gfx.RoleButton, SkipTab: true, Hint: entry.recencyHint, Selected: entry.checked}).Children(func() {
+	row.HitOutset(2, 0, 2, 0).HitWith(id, entry.label, gfx.HitOptions{Role: gfx.RoleButton, SkipTab: true, Hint: entry.hint, Selected: entry.checked}).Children(func() {
 		if entry.checkable {
 			// The tick keeps its place when unticked, so the names line up.
 			tick := ui.Stack(c).Size(14, 14).Shrink(0)
@@ -328,17 +341,20 @@ func (state *State) declareCommandPaletteRow(c ui.C, entry commandPaletteEntry, 
 				})
 			})
 		}
-		// A saved host can be opened for editing from its own row: the pencil
-		// opens the host's dialog instead of connecting.
+		// The pencil opens the settings for this row.
 		if edit := connectPickEdit(entry.target); !edit.IsZero() {
+			label := state.messages.EditHost
+			if edit.Scope() == hitConnectShortcutEdit {
+				label = state.messages.LocalShortcuts.Edit
+			}
 			var editWash gfx.Color
 			if canvas := c.Canvas(); canvas != nil && canvas.Hovered() == edit {
 				editWash = state.pal.line
 			}
-			ui.Stack(c).Size(24, 24).Shrink(0).HitWith(edit, state.messages.EditHost, gfx.HitOptions{Role: gfx.RoleButton, SkipTab: true, Hint: state.messages.EditHost}).Children(func() {
+			ui.Stack(c).Size(24, 24).Shrink(0).HitWith(edit, label, gfx.HitOptions{Role: gfx.RoleButton, SkipTab: true, Hint: label}).Children(func() {
 				ui.Row(c).Fill().Radius(radius.item).Background(editWash)
 				ui.Row(c).Fill().Items(ui.Center).Justify(ui.Center).Children(func() {
-					ui.Icon(c, lucideIcons[iconPencil]).Size(14, 14).Color(state.pal.muted).Shrink(0)
+					ui.Icon(c, lucideIcons[iconPencil]).Size(14, 14).Color(color).Shrink(0)
 				})
 			})
 		}

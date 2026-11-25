@@ -271,7 +271,7 @@ func (state *State) declareTerminalMenu(c ui.C) {
 	rows.add(components.ContextMenuItem{ID: hitTerminalMenuFiles, Label: messages.SFTPFiles, Icon: icon(iconFolderOpen), Kind: components.ContextMenuCheckbox, Checked: state.filesPanelShown(), Disabled: !session.isLocal() && (session.conn == nil || !session.hasServer())})
 	rows.add(components.ContextMenuItem{ID: hitTerminalMenuTransfer, Label: messages.Tools.XYMenu, Icon: icon(iconTransfer), Disabled: !live || session.transferBusy()})
 	rows.separate()
-	rows.add(components.ContextMenuItem{ID: hitTerminalMenuAsk, Label: messages.AIPanel.MenuAskSelection, Icon: icon(iconBot), Disabled: !hasSelection})
+	rows.add(components.ContextMenuItem{ID: hitTerminalMenuAsk, Label: messages.AIPanel.MenuAskSelection, Icon: icon(iconSparkles), Disabled: !hasSelection})
 	rows.add(components.ContextMenuItem{ID: hitTerminalMenuExplain, Label: messages.AIPanel.MenuExplainOutput, Icon: icon(iconSparkles)})
 	rows.add(components.ContextMenuItem{ID: hitTerminalMenuHistory, Label: messages.History.Title, Icon: icon(iconHistory), Disabled: !state.historyAvailable(session)})
 	rows.chord(chord(shortcutHistory))

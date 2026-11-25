@@ -1,8 +1,10 @@
 package workbench
 
 import (
+	"errors"
 	"math"
 
+	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/base"
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
@@ -42,6 +44,10 @@ type formField struct {
 	secure             bool
 	multiline          bool
 	editor             text.Editor
+	// control replaces the text input with a caller-supplied control in the same labelled row.
+	control func(ui.C, gfx.ID)
+	// browseDirectory adds a native folder picker to a directory text field.
+	browseDirectory string
 	// pageField and pageBound are the page field declared over the editor; row is its
 	// labelled row and shown reveals a secret one. A multiline field is a page text
 	// area, area, bound to the same editor.
@@ -136,7 +142,11 @@ func (state *State) formEditor(hit gfx.ID) *text.Editor {
 	if hit.Scope() != hitFormFieldList {
 		return nil
 	}
-	return &state.form.fields[uint32(item(hit))].editor
+	field := &state.form.fields[item(hit)]
+	if field.control != nil {
+		return nil
+	}
+	return &field.editor
 }
 
 func (state *State) clickForm(id gfx.ID) {
@@ -360,6 +370,12 @@ func (state *State) declareFormDialogBody(c ui.C) {
 // text bound to the field's editor. A secret one has a button that reveals it.
 func (state *State) declareFormField(c ui.C, i int) {
 	field, m := &state.form.fields[i], state.messages
+	if field.control != nil {
+		ui.FormField(c, &field.row, field.label).FillWidth().Height(dialogRowHeight(c.Theme())).Children(func() {
+			field.control(c, hitFormFieldList.At(i))
+		})
+		return
+	}
 	if !field.pageBound {
 		field.pageField.Bind(&field.editor)
 		field.pageBound = true
@@ -367,6 +383,15 @@ func (state *State) declareFormField(c ui.C, i int) {
 	field.pageField.Secure = field.secure && !field.shown
 	ui.FormField(c, &field.row, field.label).FillWidth().Height(dialogRowHeight(c.Theme())).Children(func() {
 		box := ui.TextFieldID(c, hitFormFieldList.At(i), &field.pageField, field.label, field.placeholder)
+		if field.browseDirectory != "" && state.options.OpenDirectory != nil {
+			box.Action(lucideIcons[iconFolderOpen], field.browseDirectory)
+			if box.ActionClicked() {
+				// A native picker can repaint this window while it is open.
+				// Finish the click pass before entering its event loop.
+				serial := state.formSerial
+				c.After(func() { state.chooseFormDirectory(i, serial) })
+			}
+		}
 		if field.secure {
 			icon, name := lucideIcons[iconEye], m.ShowSecret
 			if field.shown {
@@ -378,4 +403,20 @@ func (state *State) declareFormField(c ui.C, i int) {
 			}
 		}
 	})
+}
+
+func (state *State) chooseFormDirectory(index int, serial uint32) {
+	if state.modal != modalForm || state.formSerial != serial {
+		return
+	}
+	dir, err := state.options.OpenDirectory(app.OpenDirectoryOptions{Title: state.form.fields[index].browseDirectory})
+	if state.modal != modalForm || state.formSerial != serial {
+		return
+	}
+	switch {
+	case err == nil && dir != "":
+		state.form.set(index, dir)
+	case err != nil && !errors.Is(err, app.ErrCanceled):
+		state.form.dialogError = err.Error()
+	}
 }

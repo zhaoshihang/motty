@@ -300,21 +300,6 @@ var (
 		},
 	}
 
-	// iconMotionBlink nods a robot's antenna and blinks its eyes: contour 0 is the
-	// antenna, 4 and 5 are the eyes, and the head keeps still.
-	iconMotionBlink = iconMotion{
-		duration: 1100 * time.Millisecond,
-		parts: []iconPartMotion{
-			part(0, iconMotionTrack{axis: iconAxisTurn, stops: []iconMotionStop{
-				{at: 0, value: 0, ease: easeRockIn},
-				{at: 280, value: turn(-32), ease: easeLand},
-				{at: 1100, value: 0},
-			}}),
-			eyeBlink(4, 450),
-			eyeBlink(5, 450),
-		},
-	}
-
 	// iconMotionUnlid lifts an archive box's lid and closes it again; the box and
 	// its handle stay. Contour 0 is the lid.
 	iconMotionUnlid = iconMotion{
@@ -497,16 +482,6 @@ func keyPress(contour int, start float32) iconPartMotion {
 	}})
 }
 
-// eyeBlink is one eye of the robot glyph closing and opening, start milliseconds
-// into the motion. The eye is a dot, so closing it is shrinking it to a speck.
-func eyeBlink(contour int, start float32) iconPartMotion {
-	return part(contour, iconMotionTrack{axis: iconAxisScale, stops: []iconMotionStop{
-		{at: start, value: 1, ease: easeSqueeze},
-		{at: start + 140, value: 0.15, ease: easeLand},
-		{at: start + 400, value: 1},
-	}})
-}
-
 // iconMotionFor is the motion choosing a row with this icon plays. Two rows can
 // share an icon — Settings in the sidebar and the general entries of the settings
 // list — and they play the same motion. A motion with parts names contours of one
@@ -543,11 +518,9 @@ func iconMotionFor(icon uint8) (iconMotion, bool) {
 		return iconMotionRack, true
 	case iconKeyboard:
 		return iconMotionType, true
-	case iconBot:
-		return iconMotionBlink, true
 	case iconPlug:
 		return iconMotionPlug, true
-	case iconColumns2, iconSnippets, iconNotebook, iconInfo, iconBug, iconFileClock, iconLocalProxy:
+	case iconSparkles, iconColumns2, iconSnippets, iconNotebook, iconInfo, iconBug, iconFileClock, iconLocalProxy:
 		return iconMotionSquash, true
 	}
 	return iconMotion{}, false

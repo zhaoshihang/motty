@@ -64,7 +64,6 @@ const (
 	iconColumns2
 	iconRows2
 	iconGrid2x2
-	iconBot
 	iconHistory
 	iconCopy
 	iconChevronRight
@@ -98,7 +97,6 @@ const (
 	iconQQ
 	iconWeChat
 	iconDiscord
-	iconGitHub
 	iconChevronLeft
 	iconSnippets
 	iconNotebook
@@ -2751,7 +2749,6 @@ var lucideIcons = [...]gfx.Icon{
 	iconRows2:           icons.Rows2,
 	iconGrid2x2:         icons.Grid2x2,
 
-	iconBot:              icons.Bot,
 	iconHistory:          icons.History,
 	iconCopy:             icons.Copy,
 	iconChevronRight:     icons.ChevronRight,
@@ -2797,7 +2794,6 @@ var lucideIcons = [...]gfx.Icon{
 	iconQQ:               icons.Qq,
 	iconWeChat:           icons.Wechat,
 	iconDiscord:          icons.Discord,
-	iconGitHub:           icons.Github,
 	iconNotebook:         icons.Notebook,
 	iconSnippets:         icons.Zap,
 	iconLocalProxy:       icons.Waypoints,

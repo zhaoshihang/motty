@@ -70,7 +70,6 @@ var (
 	hitHostImportDismiss       = tree.ID(shellHits, "host-import-dismiss")
 	hitHostImportClose         = tree.ID(shellHits, "host-import-close")
 	hitHostImportDone          = tree.ID(shellHits, "host-import-done")
-	hitGitHub                  = tree.ID(shellHits, "github")
 	hitTheme                   = tree.ID(shellHits, "theme")
 	hitDialogClose             = tree.ID(shellHits, "dialog-close")
 	hitDialogCancel            = tree.ID(shellHits, "dialog-cancel")
@@ -754,6 +753,7 @@ type State struct {
 	// It is this computer's own: another computer runs other shells, and the
 	// commands set up its character set and the like.
 	localStartupCommands map[string]string
+	localShortcuts       map[string]localShortcut // local terminal shortcuts by display name
 	// localStartupDialog is the popup that edits one shell's startup command.
 	localStartupDialog localStartupDialog
 	localStart         localStartPolicy
@@ -2118,8 +2118,6 @@ func (state *State) click(id gfx.ID, feedback bool) {
 		state.importSSHConfig()
 	case id == hitLocalTerminal || id == hitWindowLocalTerminal:
 		state.openLocalTerminal()
-	case id == hitGitHub:
-		state.openExternal(aboutRepoURL)
 	case id == hitTheme:
 		// The button flips the look that is showing, which is a choice.
 		if state.appearance.toggled() == appearanceLight {

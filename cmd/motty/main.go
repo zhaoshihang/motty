@@ -46,6 +46,19 @@ func main() {
 	if os.Getenv("MOTTY_FIDO_ASKPASS") == "1" {
 		os.Exit(runFidoAskpass(os.Args[1:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "settings-backup" {
+		if err := runSettingsBackup(os.Args[2:]); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
+	if handled, err := explorerMenuCommand(os.Args[1:]); handled {
+		if err != nil {
+			fatal(err)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "mcp-bridge" {
 		os.Exit(runMCPBridge(os.Args[2:]))
 	}

@@ -694,6 +694,13 @@ type ToolsMessages struct {
 	GeneralUpdateSourceDescription  string
 	GeneralUpdateSourceOfficial     string
 	GeneralUpdateSourceCNB          string
+	GeneralUpdateSourceCustom       string
+	GeneralUpdateAddress            string
+	GeneralUpdateAddressHint        string
+	GeneralUpdateAddressSave        string
+	GeneralUpdateAddressInvalid     string
+	LaunchDirectoryInvalid          string
+	EditRemoteFile                  string
 	GeneralUpdateStartup            string
 	GeneralUpdateStartupDescription string
 	UpdateChecking                  string

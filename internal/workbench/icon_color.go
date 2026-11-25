@@ -6,6 +6,7 @@ import (
 
 	"github.com/vivaui/viva/app"
 	"github.com/vivaui/viva/gfx"
+	"motty/assets"
 )
 
 // iconColor is a device preference, independent of the interface's light/dark
@@ -62,6 +63,8 @@ func (color iconColor) bitmapID(part uint64) uint64 {
 	return uint64(1<<60|1<<55) + uint64(color.normalized())*3 + part
 }
 
+var defaultIconTile = embeddedBitmap(assets.IconTile, 1<<60|3)
+
 var iconPreviews [iconColorCount]struct {
 	once   sync.Once
 	bitmap gfx.Bitmap
@@ -74,7 +77,7 @@ func (color iconColor) previewBitmap() gfx.Bitmap {
 	color = color.normalized()
 	cache := &iconPreviews[color]
 	cache.once.Do(func() {
-		bitmap := aboutIconTile()
+		bitmap := defaultIconTile()
 		if color != iconMint {
 			bitmap.Pix = slices.Clone(bitmap.Pix)
 			color.recolor(bitmap.Pix, true)

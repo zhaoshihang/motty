@@ -9,17 +9,17 @@ import (
 	"github.com/vivaui/viva/ui"
 )
 
-// connectSortChoice is an option of the new-tab picker's switch. It is derived
-// from the picker's workspaces flag and the saved recent-connections preference.
+// connectSortChoice is the active tab in the new-tab picker.
 type connectSortChoice uint8
 
 const (
 	connectSortDefault connectSortChoice = iota
 	connectSortWorkspaces
 	connectSortRecent
+	connectSortShortcuts
 )
 
-var connectSortChoices = [...]connectSortChoice{connectSortDefault, connectSortWorkspaces, connectSortRecent}
+var connectSortChoices = [...]connectSortChoice{connectSortDefault, connectSortWorkspaces, connectSortRecent, connectSortShortcuts}
 
 func (state *State) connectSortLabel(choice connectSortChoice) string {
 	m := state.messages
@@ -28,33 +28,20 @@ func (state *State) connectSortLabel(choice connectSortChoice) string {
 		return m.WorkspaceLibraryTitle
 	case connectSortRecent:
 		return m.NewTabSortRecent
+	case connectSortShortcuts:
+		return m.LocalShortcuts.Tab
 	}
 	return m.NewTabSortDefault
 }
 
-// connectSortValue derives the switch's value from the picker's flags.
-func (state *State) connectSortValue() connectSortChoice {
-	if state.commandPalette.workspaces {
-		return connectSortWorkspaces
-	}
-	if state.recentConnectSort {
-		return connectSortRecent
-	}
-	return connectSortDefault
-}
-
-// declareConnectSort declares the default/workspaces/recent switch in the title
-// row of the picker's dialog. It is a page Choice, so its arrows move between the
-// options.
+// Only choosing a host sort changes the saved preference for the next opening.
 func (state *State) declareConnectSort(c ui.C) {
 	palette := &state.commandPalette
-	palette.sort = state.connectSortValue()
-	ui.Stack(c).Absolute().Left(palette.sortLeft).Top(palette.sortTop).Width(commandPaletteSortWidth).Height(palette.sortHeight).Children(func() {
+	ui.Stack(c).Absolute().Left(palette.sortLeft).Top(palette.sortTop).Width(palette.sortWidth).Height(palette.sortHeight).Children(func() {
 		if !ui.Choice(c, &palette.sort, connectSortChoices[:], state.connectSortLabel).Fill().Changed() {
 			return
 		}
-		palette.workspaces = palette.sort == connectSortWorkspaces
-		if !palette.workspaces {
+		if palette.sort == connectSortDefault || palette.sort == connectSortRecent {
 			state.recentConnectSort = palette.sort == connectSortRecent
 			state.save()
 		}
@@ -124,7 +111,7 @@ func (state *State) rebuildRecentConnectPicker(rawQuery string) {
 		entry := item.entry
 		entry.recency = state.connectionRecency(item.at, now)
 		if !item.at.IsZero() {
-			entry.recencyHint = item.at.Local().Format("2006-01-02 15:04:05 MST")
+			entry.hint = item.at.Local().Format("2006-01-02 15:04:05 MST")
 		}
 		palette.entries = append(palette.entries, entry)
 	}

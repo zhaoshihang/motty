@@ -38,7 +38,7 @@ func TestRecentPickerSwitchTakesTheKeyboardAndHandsItBack(t *testing.T) {
 		t.Fatalf("right on the switch = %+v", result)
 	}
 	activateChoice(t, state, result.Activate)
-	if !state.commandPalette.workspaces {
+	if state.commandPalette.sort != connectSortWorkspaces {
 		t.Fatal("right on the switch did not choose workspaces")
 	}
 	workspacesHit = settingsChoiceHit(t, state, state.messages.WorkspaceLibraryTitle)
@@ -48,8 +48,8 @@ func TestRecentPickerSwitchTakesTheKeyboardAndHandsItBack(t *testing.T) {
 		t.Fatalf("right from workspaces = %+v", result)
 	}
 	activateChoice(t, state, result.Activate)
-	if !state.recentConnectSort || state.commandPalette.workspaces {
-		t.Fatalf("right from workspaces = recent=%t workspaces=%t", state.recentConnectSort, state.commandPalette.workspaces)
+	if !state.recentConnectSort || state.commandPalette.sort != connectSortRecent {
+		t.Fatalf("right from workspaces = recent=%t tab=%v", state.recentConnectSort, state.commandPalette.sort)
 	}
 	recentHit = settingsChoiceHit(t, state, state.messages.NewTabSortRecent)
 	result = windowKeyRoutes(state, gfx.KeyEvent{Target: recentHit.ID, Key: gfx.KeyEnter})

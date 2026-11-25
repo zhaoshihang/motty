@@ -84,18 +84,21 @@ func (w *boundedWriter) Write(b []byte) (int, error) {
 	}
 	return n, nil
 }
-func runCommand(ctx context.Context, spec command, stdout io.Writer) ([]byte, error) {
-	child, cancel := context.WithCancel(ctx)
-	defer cancel()
-	cmd := exec.CommandContext(child, spec.program, spec.args...)
+func newCLIProcess(ctx context.Context, spec command) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, spec.program, spec.args...)
 	cmd.Dir = spec.dir
 	cmd.Env = processEnv(spec.env)
+	cmd.WaitDelay = 2 * time.Second
+	configureProcess(cmd)
+	return cmd
+}
+
+func runCommand(ctx context.Context, spec command, stdout io.Writer) ([]byte, error) {
+	cmd := newCLIProcess(ctx, spec)
 	cmd.Stdin = strings.NewReader(spec.input)
 	cmd.Stdout = stdout
 	stderr := &boundedWriter{limit: maxStderr}
 	cmd.Stderr = stderr
-	cmd.WaitDelay = 2 * time.Second
-	configureProcess(cmd)
 	err := cmd.Run()
 	if ctx.Err() != nil {
 		return nil, ctx.Err()

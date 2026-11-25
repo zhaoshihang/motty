@@ -5,7 +5,7 @@ import (
 	"motty/internal/sshconn"
 )
 
-var sftpWindowActionIDs = [...]gfx.ID{hitSFTPOpenEntry, hitSFTPDownload, hitSFTPDownloadHere, hitSFTPSend, hitSFTPEditExternal, hitSFTPReveal, hitSFTPOpenFolder, hitSFTPGoToLink, hitSFTPRename, hitSFTPMove, hitSFTPChmod, hitSFTPChown, hitSFTPExtract, hitSFTPCompress, hitSFTPDelete, hitSFTPNewFile, hitSFTPNewDirectory, hitSFTPUpload, hitSFTPUploadDirectory, hitSFTPNewLink, hitSFTPProperties, hitSFTPCalculateDirectorySize}
+var sftpWindowActionIDs = [...]gfx.ID{hitSFTPOpenEntry, hitSFTPDownload, hitSFTPDownloadHere, hitSFTPSend, hitSFTPEditExternal, hitSFTPReveal, hitSFTPOpenFolder, hitSFTPGoToLink, hitSFTPRename, hitSFTPMove, hitSFTPChmod, hitSFTPChown, hitSFTPExtract, hitSFTPCompress, hitSFTPDelete, hitSFTPNewFile, hitSFTPNewDirectory, hitSFTPUpload, hitSFTPUploadDirectory, hitSFTPNewLink, hitSFTPProperties, hitSFTPCalculateDirectorySize, hitSFTPRemoteEditor}
 
 func sftpWindowActionIndex(id gfx.ID) int {
 	for i, action := range sftpWindowActionIDs {
@@ -55,7 +55,8 @@ func (w *sftpWindow) selectionActions(local bool) []sftpWindowAction {
 		actions = append(actions, sftpWindowAction{sftpWindowActionIndex(id), glyph, label})
 	}
 	if count == 1 {
-		add(hitSFTPOpenEntry, iconFolderOpen, m.SFTPOpen)
+		glyph, label := w.owner.sftpOpenAction(local, folder.rows[selected].entry)
+		add(hitSFTPOpenEntry, glyph, label)
 	}
 	if local {
 		if count == 1 && folder.rows[selected].entry.Mode.IsRegular() {
@@ -148,6 +149,8 @@ func (w *sftpWindow) fileAction(local bool, id gfx.ID) {
 		if !local {
 			w.owner.openSFTPLinkDialog(w.view)
 		}
+	case hitSFTPRemoteEditor:
+		w.owner.openSelectedInRemoteEditor(w.view)
 	case hitSFTPEditExternal:
 		if local {
 			w.owner.openLocalExternal(w.view)

@@ -331,16 +331,9 @@ func (state *State) eachSettingsEntry(add func(settingsEntry)) {
 	row(settingsAbout, about.Runtime, facts.runtime)
 	group(settingsAbout, about.InfoTitle, about.CopyRow, about.CopyDescription)
 	group(settingsAbout, about.UpdateTitle, about.UpdateTitle, "")
-	row(settingsAbout, tools.GeneralUpdateSource, tools.GeneralUpdateSourceDescription)
+	row(settingsAbout, tools.GeneralUpdateSource, tools.GeneralUpdateSourceDescription+" "+tools.GeneralUpdateSourceCustom+" "+tools.GeneralUpdateAddress+" "+tools.GeneralUpdateAddressHint)
 	row(settingsAbout, tools.GeneralUpdateStartup, tools.GeneralUpdateStartupDescription)
 	row(settingsAbout, tools.GeneralUpdate, tools.GeneralUpdateDescription)
-	row(settingsAbout, about.QQ, about.QQDescription)
-	row(settingsAbout, about.WeChat, about.WeChatDescription)
-	row(settingsAbout, about.Discord, about.DiscordDescription)
-	row(settingsAbout, about.Issues, about.IssuesDescription)
-	row(settingsAbout, about.Repo, about.RepoDescription)
-	row(settingsAbout, about.Docs, about.DocsDescription)
-	row(settingsAbout, about.Viva, about.VivaDescription)
 }
 
 // openSettingsResult leaves the search and opens the category of a result,

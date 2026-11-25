@@ -35,6 +35,7 @@ concurrency:
 
 jobs:
   viva:
+    if: github.repository == 't8y2/motty'
     name: Pin viva
     runs-on: ubuntu-latest
     outputs:
@@ -52,6 +53,7 @@ jobs:
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
   release-ready:
+    if: github.repository == 't8y2/motty'
     name: Release draft ready
     runs-on: ubuntu-latest
     steps:

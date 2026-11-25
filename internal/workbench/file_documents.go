@@ -225,12 +225,7 @@ func decodeFileEvent(document *fileDocument, data []byte, err error) fileDocumen
 	if event.err != nil || event.image != nil {
 		return event
 	}
-	if filecontent.KnownBinary(data) {
-		event.err = filecontent.ErrBinary
-		return event
-	}
-	switch strings.ToLower(filepath.Ext(document.name)) {
-	case ".bin", ".exe", ".dll", ".zip", ".gz", ".7z", ".pdf", ".db", ".sqlite", ".tar", ".rar", ".so", ".dylib", ".jar", ".mp3", ".mp4":
+	if filecontent.KnownBinary(data) || !filecontent.TextCandidate(document.name) {
 		event.err = filecontent.ErrBinary
 		return event
 	}

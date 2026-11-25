@@ -68,7 +68,7 @@ jobs:
       # rejects because workerd's build script is not allowlisted. Uploading
       # needs no workerd, and dlx leaves package.json and the lockfile alone.
       - name: Deploy to Cloudflare Pages
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.repository == 't8y2/motty'
         working-directory: website
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

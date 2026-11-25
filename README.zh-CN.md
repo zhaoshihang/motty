@@ -87,7 +87,7 @@ Motty 是一个桌面 SSH 客户端。终端、SFTP 面板、端口转发、远�
 **键盘优先。**标签、分屏、SFTP、转发和助手都是命令面板里的命令，鼠标是可选项。
 **对边界说实话：**[docs/remote-desktop.md](docs/remote-desktop.md) 列出 VNC 和
 RDP 目前做不到什么，发布说明也会写清楚哪些平台在真实硬件上验证过。
-**不往外发数据：**没有统计上报，更新检查默认关闭，打开后只访问 GitHub Releases。
+没有统计上报。自动更新检查默认关闭，开启后会使用本机选择的更新源。
 
 ## 安装
 
@@ -122,6 +122,11 @@ Windows 便携版在有签名更新时也可原地升级，并保留 `motty-data
 替换一次 ZIP 中的 `motty.exe` 才能使用应用内更新。Scoop 安装的也是便携版，但其版本
 目录由 Scoop 管理：`motty-data` 会在版本间保留，升级走 `scoop update motty`。
 
+**设置 → 关于 → 更新 → 更新源** 默认选中 **自定义**，从 `zhaoshihang/motty` 检查更新。
+要更换地址，填写其他公开 GitHub 仓库或自托管 Motty 镜像清单的 HTTPS 地址，然后点 **保存地址**。
+GitHub 更新取自仓库的正式 Release，可从详情打开对应的发布页下载。自托管镜像将
+`releases/v<版本>/` 放在 `latest.json` 同级；应用内安装会验证软件包签名。
+
 ## 快速开始
 
 1. 打开 **Hosts**，选择 **New host**。
@@ -141,6 +146,17 @@ CMD、Git Bash 等已安装的 Shell，并把每个已安装的 WSL 发行版列
 文件面板直接打开在发行版的文件系统中（经由发行版的 `\\wsl.localhost` 共享访问），
 并跟随终端所在目录，资源监控也读取发行版内部的数据。请在这里选择发行版，而不是在
 PowerShell 里输入 `wsl`：只有 Motty 自己启动的 Shell 才能上报所在目录。此配置仅保存在本机，对新建或重连的本地终端生效。
+
+Windows 11 上，右键文件夹或文件夹内的空白处，在第一层菜单选择 **在此处打开 Motty Dev 终端**。
+资源管理器决定它与“在终端中打开”等项目的顺序。Windows 11 22H2 起也支持右键盘符。
+命令行可以用 `.\motty-dev.exe --local-dir "D:\Projects"` 打开指定目录。
+
+从源码构建时，先生成 `motty-dev.exe`，再用 Visual Studio C++ 构建工具和 Windows 11 SDK
+运行 `.\tools\explorermenu\build.ps1`。保留生成的 `motty-dev.explorer` 文件夹与 exe 同级。
+已启用 Windows 开发者模式的开发机可直接运行 `.\motty-dev.exe --register-shell-menu`；
+其他机器需要先用 Windows 信任的代码签名证书签署文件夹里的 `MottyExplorer.msix`，其发布者须与构建脚本的
+`-Publisher` 一致。Windows 10 运行同一注册命令即可使用经典菜单。移除菜单用
+`.\motty-dev.exe --unregister-shell-menu`。正式版对应 `-Variant Release` 和 `motty.exe`。
 
 | 操作 | macOS | Windows / Linux |
 | --- | --- | --- |
@@ -216,12 +232,19 @@ SFTP 支持多选、递归上传/下载、受限传输队列、续传、取消/�
 权限和书签。覆盖文件时先写同目录的 partial 文件，校验续传前缀，完整同步后再
 原子重命名；失败时原文件保持不变。
 
-内置编辑器支持最大 1 MiB 的 UTF-8 文件，保存前后分别读取并哈希远端文件，保留
-权限；冲突时两边内容都不丢。没有 SFTP 子系统的服务器可以退回内置 SCP。编辑器按
+在远程文件面板中双击文本文件，或右键选择 **在线编辑**。内置编辑器直接通过当前连接
+读取和保存文件。默认大小上限为 20 MiB，可在 **设置 → 文件** 中调整。保存会保留文件的
+编码、换行和权限；如果远端内容已变化，可以比较两个版本再决定如何保存。
+没有 SFTP 子系统的服务器可以退回内置 SCP。编辑器按
 等宽网格排版，带行号、语法着色、括号配对和软换行；回车自动缩进并沿用文件自己的
 制表符或空格，括号与引号成对输入，Tab / Shift+Tab 缩进选中的行，Cmd/Ctrl+/
 切换行注释，Alt+↑↓ 移动行、Shift+Alt+↑↓ 复制行、Cmd/Ctrl+Shift+K 删除行，
 Cmd/Ctrl+F、Ctrl+H 查找与替换（区分大小写、全字匹配、正则），Ctrl+G 跳转到行。
+
+开发整个项目时，可以在 **设置 → 文件** 将默认编辑器设为 **VS Code**。在远程文件上
+右键选择 **在 VS Code 中打开**，或从目录菜单打开整个项目。本机需要 VS Code 和
+Remote - SSH 扩展，远端需要能运行 VS Code Server，SSH 认证和跳板可通过本机
+OpenSSH 配置提供。详见 [VS Code Remote - SSH](https://code.visualstudio.com/docs/remote/ssh)。
 
 文件面板可自动跟随 SSH Bash/Zsh 终端所在目录。**设置 > 文件** 还提供独立的
 “终端跟随文件栏目录”开关，默认关闭；开启后仅在空闲且未输入命令的提示符下
@@ -326,7 +349,7 @@ go run ./cmd/viva package -C ../motty --target linux --arch amd64 --format tar.g
 - 保存的密码和口令进 AES-256-GCM 保险库，密钥在系统密钥存储里；系统没有时放在数据目录的密钥文件中，能拷走该目录的人就能读出保险库。
 - AI 供应商 Key 存在保险库；终端上下文默认脱敏，agent 命令经过审批门。
 - MCP 默认关闭、只监听 loopback，并要求 bearer token。
-- 没有统计上报；可选的更新检查会访问 GitHub Releases，默认关闭。
+- 自动更新检查默认关闭，更新源可以在本机设置。
 
 审批门是安全控制，不是沙箱。不要把 agent 指向一台错一条命令就无法接受的主机。
 

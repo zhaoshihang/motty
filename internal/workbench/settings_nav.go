@@ -64,7 +64,7 @@ func (category settingsCategory) icon() uint8 {
 	case settingsBackup:
 		return iconArchive
 	case settingsAssistant:
-		return iconBot
+		return iconSparkles
 	case settingsMCP:
 		return iconPlug
 	case settingsShortcuts:
@@ -126,6 +126,9 @@ func (state *State) selectSettingsCategory(category settingsCategory) bool {
 		return false
 	}
 	state.settingsCategory = category
+	if category == settingsAssistant {
+		state.aiLoadCodexModels()
+	}
 	state.schemeBrowserOpen = false
 	state.settingsScroll = 0
 	state.settings.pageMotion = gfx.Motion{}

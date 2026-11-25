@@ -6,7 +6,9 @@ import (
 	"github.com/vivaui/viva/components"
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/ui"
+	"motty/internal/filecontent"
 	"motty/internal/sftpclient"
+	"motty/internal/workbench/icons"
 )
 
 // sftpMenuHits is the place of the controls this file paints.
@@ -80,7 +82,7 @@ func sftpMenuAction(id gfx.ID) (gfx.ID, bool) {
 	case hitSFTPMenuPasteFiles:
 		return hitSFTPPasteFiles, true
 	case hitSFTPNewFile, hitSFTPNewDirectory, hitSFTPUpload, hitSFTPUploadDirectory, hitSFTPNewLink,
-		hitSFTPCopyPath, hitSFTPProperties, hitSFTPCopyFiles, hitSFTPPasteFiles:
+		hitSFTPCopyPath, hitSFTPProperties, hitSFTPCopyFiles, hitSFTPPasteFiles, hitSFTPRemoteEditor:
 		return id, true
 	}
 	return gfx.ID{}, false
@@ -171,6 +173,13 @@ func (state *State) declareSFTPMenu(c ui.C) {
 	state.declareRowsMenu(c, &state.sftpMenu.open, state.sftpMenu.at, hitSFTPMenuDismiss, &rows, state.chooseSFTPMenu)
 }
 
+func (state *State) sftpOpenAction(local bool, entry sftpclient.Entry) (uint8, string) {
+	if !local && entry.Mode.IsRegular() && !entry.IsDir() && !entry.LinkBroken && filecontent.TextCandidate(entry.Name) {
+		return iconPencil, state.messages.Tools.EditRemoteFile
+	}
+	return iconFolderOpen, state.messages.SFTPOpen
+}
+
 func (state *State) sftpMenuRows(session *Session, view *sftpView) menuRows {
 	messages := state.messages
 	count, selected := selectedSFTP(view)
@@ -179,7 +188,12 @@ func (state *State) sftpMenuRows(session *Session, view *sftpView) menuRows {
 	icon := func(kind uint8) gfx.Icon { return lucideIcons[kind] }
 	var rows menuRows
 	if one {
-		rows.add(components.ContextMenuItem{ID: hitSFTPMenuOpen, Label: messages.SFTPOpen, Icon: icon(iconFolderOpen), Disabled: busy})
+		glyph, label := state.sftpOpenAction(local, selected)
+		rows.add(components.ContextMenuItem{ID: hitSFTPMenuOpen, Label: label, Icon: icon(glyph), Disabled: busy || selected.LinkBroken})
+		if state.canOpenVSCodeFile(view, selected) {
+			label, disabled := state.sftpEditorItem(view, &view.sftpFolder)
+			rows.add(components.ContextMenuItem{ID: hitSFTPRemoteEditor, Label: label, Icon: icons.CodeXml, Disabled: busy || disabled})
+		}
 		if local && selected.Mode.IsRegular() {
 			rows.add(components.ContextMenuItem{ID: hitSFTPMenuEdit, Label: messages.Tools.ExtEditButton, Icon: icon(iconExternal), Disabled: busy})
 		}

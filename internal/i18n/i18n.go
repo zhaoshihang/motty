@@ -19,6 +19,12 @@ type HostGroupMessages struct {
 	KeepParentFmt, KeepUngrouped                  string
 }
 
+// LocalShortcutMessages names the controls for saved local terminal shortcuts.
+type LocalShortcutMessages struct {
+	Tab, Search, Empty, Add, Edit, Directory, Shell                                          string
+	DeleteTitleFmt, NameRequired, NameTaken, DirectoryUnavailable, ShellUnavailable, Changed string
+}
+
 // Language selects one catalog entry.
 type Language uint8
 
@@ -666,7 +672,6 @@ type Messages struct {
 
 	// Accessible names of the window-bar buttons and tabs. LabelTerminalFmt
 	// names a terminal and takes its address.
-	LabelGitHub          string
 	LabelThemeToLight    string
 	LabelThemeToDark     string
 	LabelNewTab          string
@@ -727,6 +732,7 @@ type Messages struct {
 	NewTabSortDefault          string
 	NewTabWorkspacePlaceholder string
 	NewTabSortRecent           string
+	LocalShortcuts             LocalShortcutMessages
 	NewTabNeverConnected       string
 	NewTabJustNow              string
 	NewTabSecondsAgo           string

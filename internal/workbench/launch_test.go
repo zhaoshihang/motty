@@ -2,6 +2,8 @@ package workbench
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -56,6 +58,33 @@ func launchState(t *testing.T) (*State, *world, *int) {
 	state := newTestState(t, options)
 	state.Wake()
 	return state, world, &raised
+}
+
+func TestLaunchLocalDirectoryOpensANewShellInEachRequestedFolder(t *testing.T) {
+	state, world, raised := launchState(t)
+	closeShells(t, state)
+	root := realTempDir(t)
+	dir := filepath.Join(root, "中文 & shell space")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []string{dir, root} {
+		state.Launch([]string{"--local-dir", want + string(os.PathSeparator) + "."})
+		state.Wake()
+		if len(state.sessions) != i+1 || !state.sessions[i].isLocal() || localDirOf(t, &state.sessions[i]) != want {
+			t.Fatalf("launch %d did not open a local shell in %q", i+1, want)
+		}
+	}
+	for _, args := range [][]string{{"--local-dir"}, {"--local-dir", "."}, {"--local-dir", filepath.Join(root, "missing")}, {"--local-dir", dir, "extra"}} {
+		state.Launch(args)
+		state.Wake()
+		if state.status != state.messages.Tools.LaunchDirectoryInvalid || len(state.sessions) != 2 {
+			t.Fatalf("invalid launch %q: %d sessions, status %q", args, len(state.sessions), state.status)
+		}
+	}
+	if state.pendingDirectory != "" || len(world.configs) != 0 || *raised != 6 {
+		t.Fatalf("pending folder %q, dials %d, raised %d", state.pendingDirectory, len(world.configs), *raised)
+	}
 }
 
 func TestACommandLineTargetConnectsAtOnce(t *testing.T) {

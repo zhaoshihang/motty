@@ -283,6 +283,35 @@ func TestSFTPEditorUsesTheAliasTheSSHConfigNamesByLabel(t *testing.T) {
 	waitSFTP(t, state, session, func(view *sftpView) bool { return view.editorResults == nil })
 }
 
+func TestSFTPRemoteFileMenuOpensTheSelectedFileOverSSH(t *testing.T) {
+	state, session, _, _ := openTestSFTP(t)
+	state.defaultEditor = editorVSCode
+	writeEditorConfig(t, state, session, session.host.Label)
+	opened := recordEditorOpens(state)
+	view := session.files
+	rightClickSFTPRow(state, view, sftpRowIndex(t, view, "docs"))
+	if menuHasRow(state, state.messages.Tools.EditRemoteFile) || menuHasRow(state, menuLabelOf(state, hitSFTPRemoteEditor)) {
+		t.Fatal("a directory has a file editing action")
+	}
+	index := sftpRowIndex(t, view, "notes.txt")
+	view.rows[index].entry.Name = "配置 #1"
+	rightClickSFTPRow(state, view, index)
+	if !menuHasRow(state, state.messages.Tools.EditRemoteFile) {
+		t.Fatal("the remote file has no built-in editor action")
+	}
+	chooseMenu(t, state, hitSFTPRemoteEditor)
+	want := editorOpened{"vscode", "vscode://vscode-remote/ssh-remote+" + session.host.Label + "/home/test/%E9%85%8D%E7%BD%AE%20%231:1:1"}
+	if got := awaitEditorOpen(t, opened); got != want {
+		t.Fatalf("opened %+v, want %+v", got, want)
+	}
+	waitSFTP(t, state, session, func(view *sftpView) bool { return view.editorResults == nil })
+	view.rows[index].entry.Name = "config:2"
+	rightClickSFTPRow(state, view, index)
+	if !menuHasRow(state, state.messages.Tools.EditRemoteFile) || menuHasRow(state, menuLabelOf(state, hitSFTPRemoteEditor)) {
+		t.Fatal("a colon in a file name should use the built-in editor")
+	}
+}
+
 func TestSFTPEditorWontOpenAHostBehindAJumpHostOnlyMottyKnows(t *testing.T) {
 	state, session, _, _ := openTestSFTP(t)
 	state.defaultEditor = editorZed

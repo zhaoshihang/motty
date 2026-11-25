@@ -20,9 +20,9 @@ func TestTheUpdateFooterKeepsTheSourcePickerClearOfItsActions(t *testing.T) {
 			var canvas gfx.Canvas
 			state.Paint(&canvas, gfx.Size{Width: 1400, Height: 900})
 
-			official := state.messages.Tools.GeneralUpdateSourceOfficial
+			custom := state.messages.Tools.GeneralUpdateSourceCustom
 			source, ok := canvasHitWhere(&canvas, func(hit gfx.Hit) bool {
-				return hit.Role == gfx.RoleCombobox && hit.Value == official
+				return hit.Role == gfx.RoleCombobox && hit.Value == custom
 			})
 			if !ok {
 				t.Fatalf("the update source picker is not painted: %+v", canvas.Hits())
@@ -60,9 +60,9 @@ func TestTheUpdateFooterFitsANarrowWindow(t *testing.T) {
 	var canvas gfx.Canvas
 	state.Paint(&canvas, gfx.Size{Width: 640, Height: 600})
 
-	official := state.messages.Tools.GeneralUpdateSourceOfficial
+	custom := state.messages.Tools.GeneralUpdateSourceCustom
 	source, ok := canvasHitWhere(&canvas, func(hit gfx.Hit) bool {
-		return hit.Role == gfx.RoleCombobox && hit.Value == official
+		return hit.Role == gfx.RoleCombobox && hit.Value == custom
 	})
 	if !ok {
 		t.Fatalf("the update source picker is not painted: %+v", canvas.Hits())

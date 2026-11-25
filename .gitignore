@@ -3,6 +3,7 @@
 /build/
 /motty
 /motty-dev*
+/motty.explorer/
 /.dev-data/
 /.private/
 /.agents/

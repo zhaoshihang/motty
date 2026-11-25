@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
@@ -40,6 +42,8 @@ var (
 
 var (
 	hitSettingsLoginToggle       = tree.ID(launchHits, "settings-login")
+	hitUpdateAddress             = tree.ID(launchHits, "settings-update-address")
+	hitUpdateAddressSave         = tree.ID(launchHits, "settings-update-address-save")
 	hitSettingsUpdateCheck       = tree.ID(launchHits, "settings-update-check")
 	hitSettingsUpdateDownload    = tree.ID(launchHits, "settings-update-download")
 	hitUpdateNoticeAction        = tree.ID(launchHits, "update-notice-action")
@@ -130,6 +134,24 @@ func (state *State) launchReady() bool {
 }
 
 func (state *State) openLaunch(args []string) {
+	if len(args) > 0 && args[0] == "--local-dir" {
+		if state.options.Raise != nil {
+			state.options.Raise()
+		}
+		if len(args) != 2 || !validLocalDirectory(args[1]) {
+			state.status = state.messages.Tools.LaunchDirectoryInvalid
+			return
+		}
+		dir := filepath.Clean(args[1])
+		info, err := os.Stat(dir)
+		if err != nil || !info.IsDir() {
+			state.status = state.messages.Tools.LaunchDirectoryInvalid
+			return
+		}
+		state.pendingDirectory = dir
+		state.openLocalTerminal()
+		return
+	}
 	if path, ok := xshellLaunchPath(args); ok {
 		if state.options.Raise != nil {
 			state.options.Raise()
@@ -279,10 +301,11 @@ const (
 )
 
 type updateState struct {
-	checking bool
-	// source is where checks and downloads go: the official mirror or the CNB
-	// copy. It belongs to this computer, like the check itself.
-	source update.Source
+	checking              bool
+	source                update.Source
+	address, addressDraft string
+	addressInvalid        bool
+
 	// checkSerial names the check whose answer is still wanted; a source change
 	// invalidates the one in flight.
 	checkSerial int
@@ -318,6 +341,26 @@ func (state *State) paintLoginSetting(page *settingsPage) {
 func (state *State) paintUpdateRows(page *settingsPage) {
 	m := state.messages.Tools
 	settingsChoiceRow(page, m.GeneralUpdateSource, m.GeneralUpdateSourceDescription, &state.update.source, settingsUpdateSourceChoices[:], state.settingsUpdateSourceLabel, state.changeUpdateSource, nil)
+	if state.update.source == update.SourceCustom {
+		c := page.c
+		page.growRow().PadX(18).Children(func() {
+			ui.Column(c).FillWidth().Gap(4).Children(func() {
+				ui.Text(c, m.GeneralUpdateAddress).Color(state.pal.text).FontSize(metrics.FontSizeM)
+				ui.Row(c).FillWidth().Gap(8).Items(ui.Center).Children(func() {
+					field := ui.TextFieldID(c, hitUpdateAddress, &state.update.addressDraft, m.GeneralUpdateAddress, "https://github.com/owner/repo").Grow(1).Basis(0)
+					if field.Changed() {
+						state.update.addressInvalid = false
+					}
+					page.button(hitUpdateAddressSave, m.GeneralUpdateAddressSave, aiButtonOutline, state.update.addressDraft == state.update.address).Shrink(0)
+				})
+				hint, color := m.GeneralUpdateAddressHint, state.pal.muted
+				if state.update.addressInvalid {
+					hint, color = m.GeneralUpdateAddressInvalid, state.pal.danger
+				}
+				ui.Paragraph(c, hint, 0).FontSize(metrics.FontSizeS).Color(color).LineHeight(16)
+			})
+		})
+	}
 	page.toggleRow(m.GeneralUpdateStartup, m.GeneralUpdateStartupDescription, state.updateAtStart, hitSettingsUpdateStartToggle)
 	description := m.GeneralUpdateDescription
 	if state.update.text != "" {
@@ -355,6 +398,16 @@ func (state *State) clickLaunchSettings(id gfx.ID) bool {
 			state.status = fmt.Sprintf(state.messages.Tools.LoginFailedFmt, err)
 		} else {
 			state.loginOn = want
+		}
+	case hitUpdateAddressSave:
+		if state.update.source == update.SourceCustom {
+			address := strings.TrimSpace(state.update.addressDraft)
+			if _, _, err := update.CustomFeed(address); err != nil {
+				state.update.addressInvalid = true
+				return true
+			}
+			state.update.address, state.update.addressDraft = address, address
+			state.changeUpdateSource()
 		}
 	case hitSettingsUpdateStartToggle:
 		state.updateAtStart = !state.updateAtStart
@@ -439,6 +492,10 @@ func (state *State) checkForUpdates(asked bool) {
 	if state.update.checking {
 		return
 	}
+	if state.update.source == update.SourceCustom && state.update.address == "" {
+		state.update.text = state.messages.Tools.GeneralUpdateAddressHint
+		return
+	}
 	state.update.checking = true
 	state.update.checkSerial++
 	serial := state.update.checkSerial
@@ -451,10 +508,11 @@ func (state *State) checkForUpdates(asked bool) {
 		if state.options.Updater != nil {
 			pkg = state.options.Updater.Package()
 		}
+		source, address := state.update.source, state.update.address
 		check = func() (update.Release, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), update.CheckBudget)
 			defer cancel()
-			return update.CheckPackageFrom(ctx, nil, runtime.GOOS, updateArch(), pkg, state.update.source)
+			return update.CheckPackageFrom(ctx, nil, runtime.GOOS, updateArch(), pkg, source, address)
 		}
 	}
 	go func() {
@@ -519,6 +577,9 @@ func (state *State) checkForUpdates(asked bool) {
 // told to forget its answer. If the update dialog is open, it remains open and
 // checks the new source with a progress indicator.
 func (state *State) changeUpdateSource() {
+	state.update.addressInvalid = false
+	state.update.text, state.update.skipped, state.update.announced = "", "", ""
+	state.fileNotices.dismissAction(hitUpdateNoticeAction)
 	state.save()
 	inDialog := state.modal == modalUpdate
 	state.update.checkSerial++

@@ -536,6 +536,7 @@ func TestSwitchingUpdateSourceInDialogKeepsDialogAndChecks(t *testing.T) {
 	options.Quit = func() { quits++ }
 	options.OpenURL = func(url string) error { opened = append(opened, url); return nil }
 	state := newTestState(t, options)
+	state.update.source = checkSource
 	state.Click(hitSettingsUpdateCheck)
 	waitUpdate(t, state, func() bool { return state.modal == modalUpdate })
 

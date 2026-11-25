@@ -25,12 +25,12 @@ var (
 )
 
 type commandPaletteEntry struct {
-	label       string
-	recency     string
-	recencyHint string
-	detail      string // shown after the label, muted (a host's address)
-	search      string
-	target      gfx.ID
+	label   string
+	recency string
+	hint    string
+	detail  string // shown after the label, muted (a host's address)
+	search  string
+	target  gfx.ID
 	// searchOnly rows answer the search without appearing in the unfiltered
 	// list. The shells behind the Local Terminal row use this: one line until
 	// the user expands it, but typing "bash" still finds the shell.
@@ -76,8 +76,7 @@ type commandPalette struct {
 	listRect    gfx.Rect
 	// connect makes the list a picker of where a new tab connects, instead of
 	// the palette of commands.
-	connect    bool
-	workspaces bool
+	connect bool
 	// localShells expands the Local Terminal row into the shells this computer
 	// can run, inside the same searchable new-tab list. It is opened from the
 	// saved preference and written back through setLocalShellsExpanded.
@@ -97,8 +96,7 @@ type commandPalette struct {
 	// form after the page laid the boxes they use out. They are kept so a paint
 	// makes no closure.
 	listOver, chromeOver func(*ui.DrawContext)
-	// sort is the switch's value, derived from workspaces and recentConnectSort
-	// before every paint and written back by its choice.
+	// sort is the selected tab while the connect picker is open.
 	sort connectSortChoice
 	// The boxes the declaration laid out, painted after the page ends: the list
 	// window the scroll area shows and the send form's controls. The search field
@@ -110,14 +108,12 @@ type commandPalette struct {
 	sendInputBox ui.Box
 	emptyText    string
 	bodyWidth    float32
-	// sortLeft, sortTop and sortHeight place the new-tab picker's
-	// default/workspaces/recent switch in the dialog's title row, relative to
-	// the dialog body the page declares.
-	sortLeft, sortTop, sortHeight float32
+	// Position of the tab switch in the title row, relative to the dialog body.
+	sortLeft, sortTop, sortWidth, sortHeight float32
 }
 
 func (state *State) openCommandPalette() {
-	state.commandPalette.connect, state.commandPalette.snippets, state.commandPalette.workspaces, state.commandPalette.localShells = false, false, false, false
+	state.commandPalette.connect, state.commandPalette.snippets, state.commandPalette.localShells = false, false, false
 	state.modal = modalCommandPalette
 	state.commandPalette.search = text.Editor{}
 	state.commandPalette.query = ""
@@ -127,7 +123,7 @@ func (state *State) openCommandPalette() {
 }
 
 func (state *State) closeCommandPalette() {
-	state.commandPalette.connect, state.commandPalette.snippets, state.commandPalette.workspaces, state.commandPalette.localShells = false, false, false, false
+	state.commandPalette.connect, state.commandPalette.snippets, state.commandPalette.localShells = false, false, false
 	state.modal = modalNone
 	state.commandPalette.search = text.Editor{}
 	state.commandPalette.query = ""
@@ -252,7 +248,7 @@ func (state *State) refreshCommandPalette() {
 	if palette.filtered && rawQuery == palette.rawQuery {
 		return
 	}
-	if palette.connect && !palette.workspaces && state.recentConnectSort {
+	if palette.connect && palette.sort == connectSortRecent {
 		state.rebuildRecentConnectPicker(rawQuery)
 		return
 	}
@@ -360,6 +356,8 @@ func (state *State) clickCommandPalette(id gfx.ID) {
 		return
 	case hitCommandPaletteSearch:
 		return
+	case hitConnectShortcutNew:
+		state.editLocalShortcut("")
 	default:
 		if state.clickSnippetSend(id) {
 			return
@@ -373,6 +371,13 @@ func (state *State) clickCommandPalette(id gfx.ID) {
 		// connecting: the palette closes and the edit dialog takes over.
 		if id.Scope() == hitConnectPickEdit {
 			state.openEditHostID(uint32(item(id)))
+			return
+		}
+		if index, ok := id.In(hitConnectShortcutEdit); ok && index < len(state.commandPalette.entries) {
+			entry := state.commandPalette.entries[index]
+			if entry.target == hitConnectShortcuts.At(index) {
+				state.editLocalShortcut(entry.label)
+			}
 			return
 		}
 		visible, ok := id.In(hitCommandPaletteItems)
@@ -399,8 +404,13 @@ func (state *State) executeCommandPalette(visible int) {
 		state.toggleSendSession(uint32(item(entry.target)))
 		return
 	}
-	target := palette.entries[palette.visible[visible]].target
+	entry := palette.entries[palette.visible[visible]]
+	target := entry.target
 	if target.IsZero() {
+		return
+	}
+	if target.Scope() == hitConnectShortcuts {
+		state.launchLocalShortcut(entry.label)
 		return
 	}
 	state.closeCommandPalette()
@@ -498,7 +508,7 @@ func (state *State) commandPaletteKey(event gfx.KeyEvent) (gfx.EventResult, bool
 			}
 		}
 	}
-	if inItems && palette.connect && !event.Repeat {
+	if inItems && palette.connect && (palette.sort == connectSortDefault || palette.sort == connectSortRecent) && !event.Repeat {
 		toggleShells := func(expand bool) (gfx.EventResult, bool) {
 			if palette.localShells == expand {
 				return gfx.EventResult{}, false

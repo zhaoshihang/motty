@@ -1,13 +1,17 @@
 package workbench
 
 import (
-	"github.com/vivaui/viva/text"
-	"motty/internal/ai/store"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/vivaui/viva/text"
+	"motty/internal/ai/cli"
+	"motty/internal/ai/store"
 )
 
 func TestCLIFormReflectsAutomaticPathWithoutPinningIt(t *testing.T) {
@@ -131,7 +135,7 @@ func TestCLIModelRefreshDoesNotClaimRemoteDiscovery(t *testing.T) {
 	w := newSettingsWorld(t, newLister("default"))
 	s := w.state
 	db, _ := s.aiStore()
-	db.SaveProvider(store.Provider{ID: "cli", Name: "CLI", Kind: "codex-cli", Enabled: true})
+	db.SaveProvider(store.Provider{ID: "cli", Name: "CLI", Kind: store.KindClaudeCLI, Enabled: true})
 	s.reloadAI()
 	s.ai.cfg.selected = "cli"
 	s.ai.cfg.fetched = true
@@ -139,6 +143,115 @@ func TestCLIModelRefreshDoesNotClaimRemoteDiscovery(t *testing.T) {
 	text, failed := s.aiModelsStatus()
 	if failed || text != s.messages.AISettings.CLIModelsNote {
 		t.Fatal("static default mislabeled as discovery", text)
+	}
+}
+
+func TestCodexSettingsDiscoversModelsForExistingProviderAndChat(t *testing.T) {
+	fake := newLister("default", "model-a", "model-b")
+	w := newSettingsWorld(t, fake)
+	s := w.state
+	db := w.db(t)
+	if err := db.SaveProvider(store.Provider{ID: "codex", Name: "Codex", Kind: store.KindCodexCLI, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SaveModels("codex", []store.Model{
+		{Name: "default", Enabled: true}, {Name: "model-a", Enabled: false}, {Name: "my-model", Enabled: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetDefaultModel("codex", "my-model"); err != nil {
+		t.Fatal(err)
+	}
+	s.reloadAI()
+	s.selectSettingsCategory(settingsGeneral)
+	s.selectSettingsCategory(settingsAssistant)
+	pumpSettings(t, s, "Codex model discovery", func() bool { return s.ai.cfg.fetched })
+	_, texts := w.paint()
+	m := s.messages.AISettings
+	for _, want := range []string{m.ModelsFetch, fmt.Sprintf(m.CodexModelsFetchedFmt, 2), m.CLIDefaultModel, "model-a", "model-b", "my-model"} {
+		if !slices.Contains(texts, want) {
+			t.Errorf("Codex settings are missing %q", want)
+		}
+	}
+	if slices.Contains(texts, m.ModelFilterAvailable+" (0)") || slices.Contains(texts, m.ModelFilterFailed+" (0)") {
+		t.Error("CLI settings show filters that need an inference probe")
+	}
+	if s.aiModelAvailable("codex", "model-a") || !s.aiIsDefault("codex", "my-model") {
+		t.Fatal("discovery changed previous choices")
+	}
+	p, n := aiScopeModelIndex(t, s, "model-b")
+	s.aiChooseModel(p, n)
+	provider, model, err := s.aiModel()
+	if err != nil || provider.ID != "codex" || model != "model-b" {
+		t.Fatalf("selected chat model = %s/%s, err = %v", provider.ID, model, err)
+	}
+
+	before := s.aiModelList("codex")
+	fake.mu.Lock()
+	fake.names, fake.err = nil, cli.ErrModelCatalog
+	fake.mu.Unlock()
+	s.Click(hitAISetFetchModels)
+	pumpSettings(t, s, "failed refresh", func() bool { return s.ai.cfg.fetched })
+	if !slices.Equal(before, s.aiModelList("codex")) || !strings.Contains(s.ai.cfg.fetchErr, m.CodexModelsUnavailable) {
+		t.Fatal("failed refresh lost the cached catalog or its diagnostic")
+	}
+}
+
+func TestCodexSettingsKeepsDefaultWithoutCatalogSupport(t *testing.T) {
+	fake := newLister()
+	fake.err = cli.ErrModelCatalog
+	w := newSettingsWorld(t, fake)
+	if err := w.db(t).SaveProvider(store.Provider{ID: "old", Name: "Old Codex", Kind: store.KindCodexCLI, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	s := w.state
+	s.reloadAI()
+	s.Click(hitAISetProviderRow.At(0))
+	pumpSettings(t, s, "unsupported Codex catalog", func() bool { return s.ai.cfg.fetched })
+	if !s.aiModelAvailable("old", "default") || s.ai.cfg.fetchErr == "" {
+		t.Fatal("missing default fallback or missing explanation")
+	}
+}
+
+// Opt in to read the installed CLI's catalog using its normal account and
+// configuration. All Motty settings are temporary and no prompt is sent.
+func TestInstalledCodexModelPicker(t *testing.T) {
+	if os.Getenv("MOTTY_TEST_CODEX_CATALOG") != "1" {
+		t.Skip("requires a configured Codex CLI with picker-visible models")
+	}
+	w := newSettingsWorld(t, newLister())
+	s := w.state
+	s.options.AIProvider = nil
+	if err := w.db(t).SaveProvider(store.Provider{ID: "installed", Name: "Codex CLI", Kind: store.KindCodexCLI, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	s.reloadAI()
+	s.Click(hitAISetProviderRow.At(0))
+	pumpSettings(t, s, "installed Codex catalog", func() bool { return s.ai.cfg.fetched })
+	if s.ai.cfg.fetchErr != "" || s.ai.cfg.fetchCount == 0 {
+		t.Fatalf("model count = %d, err = %q", s.ai.cfg.fetchCount, s.ai.cfg.fetchErr)
+	}
+	_, texts := w.paint()
+	menu := s.aiMenuProviders()
+	if len(menu) != 1 || len(menu[0].models) != min(aiMenuModels, s.ai.cfg.fetchCount+1) {
+		t.Fatal("chat menu does not offer the CLI catalog and its default")
+	}
+	list := s.aiFilteredModels("installed")
+	for _, row := range list[:min(len(list), aiModelPageSize)] {
+		if row.Name != "default" && !slices.Contains(texts, row.Name) {
+			t.Errorf("model %q is missing from the settings list", row.Name)
+		}
+	}
+	for i, entry := range menu[0].models {
+		if entry.name == "default" {
+			continue
+		}
+		s.aiChooseModel(0, i)
+		_, name, err := s.aiModel()
+		if err != nil || name != entry.name {
+			t.Fatalf("picked %q, got %q, %v", entry.name, name, err)
+		}
+		t.Logf("selectable Codex model: %s", name)
 	}
 }
 

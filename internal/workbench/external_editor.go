@@ -92,7 +92,7 @@ func editorURI(editor ExternalEditor, authority, directory string) (string, erro
 
 // open resolves the authority, builds the URL and hands it to open under the
 // editor's scheme.
-func (request editorRequest) open(open func(scheme, link string) error) error {
+func (request editorRequest) open(open func(scheme, link string) error, remoteFile bool) error {
 	info, ok := editorByID(request.editor)
 	if !ok {
 		return fmt.Errorf("unknown editor %q", request.editor)
@@ -104,6 +104,10 @@ func (request editorRequest) open(open func(scheme, link string) error) error {
 	link, err := editorURI(request.editor, authority, request.directory)
 	if err != nil {
 		return err
+	}
+	if remoteFile && request.editor == editorVSCode {
+		// VS Code's protocol handler needs a line suffix to open a remote file.
+		link += ":1:1"
 	}
 	return open(info.scheme, link)
 }

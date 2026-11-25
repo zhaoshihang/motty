@@ -711,6 +711,11 @@ func (state *State) restoreSFTPSettings(saved savedState) {
 	}
 	state.updateAtStart = saved.UpdateCheck != "off"
 	state.update.source = update.ParseSource(saved.UpdateSource)
+	state.update.address = strings.TrimSpace(saved.UpdateAddress)
+	if state.update.address == "" {
+		state.update.address = update.DefaultCustomAddress
+	}
+	state.update.addressDraft = state.update.address
 	state.closeAction = closeActionFromString(saved.CloseAction)
 	state.keepWindows = keepWindowsPolicyFromString(saved.KeepWindowsOnExit)
 	state.relaunchAction = relaunchActionFromString(saved.RelaunchAction)

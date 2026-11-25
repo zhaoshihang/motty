@@ -128,6 +128,20 @@ func newGCM(key []byte) (cipher.AEAD, error) {
 
 // Seal encrypts the document under the password.
 func Seal(document Document, password string) ([]byte, error) {
+	return seal(format, document, password)
+}
+
+// Settings snapshots have their own authenticated format so that a full-profile
+// restore can never interpret missing hosts and credentials as deletions.
+const settingsFormat = "motty-settings-backup"
+
+type Settings map[string]json.RawMessage
+
+func SealSettings(settings Settings, password string) ([]byte, error) {
+	return seal(settingsFormat, settings, password)
+}
+
+func seal(name string, document any, password string) ([]byte, error) {
 	if len(password) < MinPasswordLength {
 		return nil, ErrWeakPassword
 	}
@@ -138,7 +152,7 @@ func Seal(document Document, password string) ([]byte, error) {
 	if len(plain) > MaxSize {
 		return nil, ErrTooLarge
 	}
-	file := envelope{Format: format, Version: version, KDF: defaultKDF}
+	file := envelope{Format: name, Version: version, KDF: defaultKDF}
 	file.KDF.Salt = make([]byte, saltSize)
 	if _, err := rand.Read(file.KDF.Salt); err != nil {
 		return nil, err
@@ -158,34 +172,50 @@ func Seal(document Document, password string) ([]byte, error) {
 // Open decrypts a backup. A file that is not a backup, or is one of another
 // version, is told apart from a wrong password.
 func Open(data []byte, password string) (Document, error) {
+	var document Document
+	if err := openEnvelope(format, data, password, &document); err != nil {
+		return Document{}, err
+	}
+	return document, nil
+}
+
+func OpenSettings(data []byte, password string) (Settings, error) {
+	var settings Settings
+	err := openEnvelope(settingsFormat, data, password, &settings)
+	if err == nil && settings == nil {
+		err = ErrNotBackup
+	}
+	return settings, err
+}
+
+func openEnvelope(name string, data []byte, password string, document any) error {
 	if len(data) > MaxSize+1<<16 {
-		return Document{}, ErrTooLarge
+		return ErrTooLarge
 	}
 	var file envelope
-	if err := json.Unmarshal(data, &file); err != nil || file.Format != format {
-		return Document{}, ErrNotBackup
+	if err := json.Unmarshal(data, &file); err != nil || file.Format != name {
+		return ErrNotBackup
 	}
 	if file.Version > version {
-		return Document{}, ErrTooNew
+		return ErrTooNew
 	}
 	params := file.KDF
 	// Costs read from a file are bounded, so a crafted file cannot ask for hours
 	// or gigabytes of work.
 	if params.Name != "argon2id" || params.Time == 0 || params.Time > 16 || params.MemoryKiB < 8 ||
 		params.MemoryKiB > 1<<20 || params.Threads == 0 || params.Threads > 16 || len(params.Salt) < 8 {
-		return Document{}, ErrNotBackup
+		return ErrNotBackup
 	}
 	gcm, err := newGCM(params.key(password))
 	if err != nil || len(file.Nonce) != gcm.NonceSize() {
-		return Document{}, ErrNotBackup
+		return ErrNotBackup
 	}
 	plain, err := gcm.Open(nil, file.Nonce, file.Data, file.additional())
 	if err != nil {
-		return Document{}, ErrWrongPassword
+		return ErrWrongPassword
 	}
-	var document Document
-	if err := json.Unmarshal(plain, &document); err != nil {
-		return Document{}, ErrNotBackup
+	if err := json.Unmarshal(plain, document); err != nil {
+		return ErrNotBackup
 	}
-	return document, nil
+	return nil
 }

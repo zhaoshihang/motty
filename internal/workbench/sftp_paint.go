@@ -377,7 +377,8 @@ func (state *State) declareSFTPPanel(c ui.C) {
 						icon(sftpButton, id, glyph, label, opBusy, style)
 					}
 					if one {
-						add(hitSFTPOpenEntry, iconFolderOpen, messages.SFTPOpen, false)
+						glyph, label := state.sftpOpenAction(local, selected)
+						add(hitSFTPOpenEntry, glyph, label, false)
 					}
 					if view.localOnly {
 						add(hitSFTPInsertPath, iconTerminal, messages.SFTPInsertPath, session.term == nil || session.term.shell == nil)

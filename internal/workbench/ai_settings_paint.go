@@ -385,6 +385,9 @@ func (state *State) aiModelsStatus() (string, bool) {
 		return fmt.Sprintf(m.ModelsFailedFmt, cfg.fetchErr), true
 	case cfg.fetched:
 		if provider, ok := state.aiSelectedProvider(); ok && store.IsCLIKind(provider.Kind) {
+			if provider.Kind == store.KindCodexCLI {
+				return fmt.Sprintf(m.CodexModelsFetchedFmt, cfg.fetchCount), false
+			}
 			return m.CLIModelsNote, false
 		}
 		return fmt.Sprintf(m.ModelsFetchedFmt, cfg.fetchCount), false
@@ -407,7 +410,7 @@ func (state *State) paintAIModels(page *settingsPage) {
 	page.group(m.ModelsTitle, func() {
 		// Which provider, what it holds, and the probe & fetch buttons.
 		fetchLabel := m.ModelsFetch
-		if store.IsCLIKind(provider.Kind) {
+		if store.IsCLIKind(provider.Kind) && provider.Kind != store.KindCodexCLI {
 			fetchLabel = m.CLIModelsCheck
 		}
 		description := fmt.Sprintf(m.ModelsDescFmt, total, enabled)
@@ -481,24 +484,29 @@ func (state *State) paintAIModels(page *settingsPage) {
 			// width is its widest value plus the select's own chrome. When the two do
 			// not fit on one row they stack, instead of one squeezing the other.
 			const filterSortGap = 12
+			filterChoices, sortChoices := aiModelFilterChoices[:], aiModelSortChoices[:]
+			if !probeable {
+				filterChoices = []aiModelFilter{aiModelFilterAll, aiModelFilterEnabled}
+				sortChoices = []aiModelSort{aiModelSortDefault, aiModelSortNameAsc}
+			}
 			availWidth := max(page.width-36, 0)
-			filterWidth := min(settingsChoiceWidth(page, aiModelFilterChoices[:], filterName), availWidth)
+			filterWidth := min(settingsChoiceWidth(page, filterChoices, filterName), availWidth)
 			canvas := page.canvas()
 			var widestSort float32
-			for _, s := range aiModelSortChoices {
+			for _, s := range sortChoices {
 				widestSort = max(widestSort, canvas.TextWidthWeight(sortName(s), metrics.FontSizeM, gfx.WeightRegular))
 			}
 			sortWidth := min(widestSort+style.SelectDefaultWidth(metrics), availWidth)
 
 			declareFilter := func() {
-				choice := ui.Choice(page.c, &cfg.modelFilter, aiModelFilterChoices[:], filterName).Width(filterWidth)
+				choice := ui.Choice(page.c, &cfg.modelFilter, filterChoices, filterName).Width(filterWidth)
 				if choice.Changed() {
 					cfg.page = 0
 					state.aiSettingsChanged()
 				}
 			}
 			declareSort := func() {
-				sortSel := ui.Select(page.c, &cfg.modelSort, aiModelSortChoices[:], sortName).
+				sortSel := ui.Select(page.c, &cfg.modelSort, sortChoices, sortName).
 					Label(m.ModelSortLabel).Width(sortWidth)
 				if sortSel.Changed() {
 					cfg.page = 0

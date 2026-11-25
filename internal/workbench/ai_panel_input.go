@@ -54,11 +54,12 @@ func aiComposerMinimum(barHeight, fontSizeM float32) float32 {
 	return aiComposerTarget + fontSizeM + aiComposerLineGap + aiComposerPad + barHeight
 }
 
-// aiApprovalLayout keeps the wrapped command and the scroll area for the
-// question at the front of the approval queue.
+// aiApprovalLayout keeps the wrapped command, risk hint and scroll area for
+// the question at the front of the approval queue.
 type aiApprovalLayout struct {
 	summary  []string
 	summaryH float32
+	riskHint string
 	request  *aiApproval
 	key      int
 	bounds   gfx.Rect
@@ -373,10 +374,25 @@ func (state *State) aiLayoutApprovalSummary(canvas *gfx.Canvas, approval *aiAppr
 	if layout.request != approval {
 		layout.request = approval
 		layout.key++
+		layout.riskHint = approval.riskHint()
 	}
 	cell, cellHeight := canvas.MonoCellSize(aiSizes.mono, state.terminalFontFace)
 	layout.summary, _ = aiMonoWrap(layout.summary[:0], approval.request.Summary, max(int((width-2*aiApprovalPad-12)/cell), 8), aiMaxSummary)
 	layout.summaryH = aiBlockHeight(len(layout.summary), cellHeight, aiBoxPad)
+}
+
+func (approval *aiApproval) riskHint() string {
+	assessment := &approval.request.Assessment
+	if approval.escalation || assessment.Level < risk.High {
+		return ""
+	}
+	var reasons []string
+	for _, reason := range assessment.Reasons {
+		if reason = strings.TrimSpace(reason); reason != "" {
+			reasons = append(reasons, reason)
+		}
+	}
+	return strings.Join(reasons, "\n")
 }
 
 // declareAIApproval declares the pinned question (a border is inside the padding,
@@ -399,8 +415,16 @@ func (state *State) declareAIApproval(c ui.C, body *aiBody) {
 		ui.Row(c).Height(aiApprovalHeader).Items(ui.Start).Children(func() {
 			ui.Text(c, title).FontSize(metrics.FontSizeM).Bold().Color(pal.text).LineHeight(20).Grow(1).MarginSides(8, 0, 0, 0)
 			if !approval.escalation {
-				ui.Row(c).Height(16).PadX(6).Center().Shrink(0).MarginSides(10, 0, 0, 0).Background(fill).Radius(radius.control).Children(func() {
-					ui.Text(c, state.aiRiskText(assessment.Level)).FontSize(metrics.FontSizeS).Weight(gfx.WeightMedium).Color(foreground).LineHeight(14)
+				label, hint := state.aiRiskText(assessment.Level), panel.approvalLay.riskHint
+				badge := ui.Row(c).Height(16).PadX(6).Gap(4).Center().Shrink(0).MarginSides(10, 0, 0, 0).Background(fill).Radius(radius.control)
+				if hint != "" {
+					badge.HitWith(hitAIApprovalRisk, label, gfx.HitOptions{Role: gfx.RoleStatus, Hint: hint})
+				}
+				badge.Children(func() {
+					ui.Text(c, label).FontSize(metrics.FontSizeS).Weight(gfx.WeightMedium).Color(foreground).LineHeight(14)
+					if hint != "" {
+						ui.Icon(c, lucideIcons[iconHelp]).Size(13, 13).Color(foreground).Shrink(0)
+					}
 				})
 			}
 		})

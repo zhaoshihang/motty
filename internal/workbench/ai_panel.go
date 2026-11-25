@@ -35,6 +35,7 @@ var (
 	hitAISend          = tree.ID(aiPanelHits, "ai-send")
 	hitAIInput         = tree.ID(aiPanelHits, "ai-input")
 	hitAIConfirm       = tree.ID(aiPanelHits, "ai-confirm")
+	hitAIApprovalRisk  = tree.ID(aiPanelHits, "ai-approval-risk")
 	hitAIApprove       = tree.ID(aiPanelHits, "ai-approve")
 	hitAIDecline       = tree.ID(aiPanelHits, "ai-decline")
 	hitAIToEnd         = tree.ID(aiPanelHits, "ai-to-end")
@@ -693,11 +694,14 @@ func (state *State) aiPanelClick(id gfx.ID) bool {
 			state.setAIMode(agent.ModeAsk)
 		}
 	case id == hitAISetup:
+		loginID := ai.needLogin
+		if loginID != "" {
+			ai.needLogin = ""
+			state.aiShowProvider(loginID)
+		}
 		state.openSettingsCategory(settingsAssistant)
-		if ai.needLogin != "" {
-			id := ai.needLogin
-			ai.cfg.selected, ai.needLogin = id, ""
-			state.aiStartCLILogin(id, false)
+		if loginID != "" {
+			state.aiStartCLILogin(loginID, false)
 		}
 	case id == hitAIModelChip:
 		panel.targetOpen = false

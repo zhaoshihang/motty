@@ -2,9 +2,14 @@ package workbench
 
 import (
 	"fmt"
+	"path"
+	"strings"
 
 	"github.com/vivaui/viva/components"
+	"motty/internal/sftpclient"
 )
+
+var hitSFTPRemoteEditor = tree.ID(sftpHits, "sftp-remote-editor")
 
 // sftpEditorItem is the more-menu item that opens one folder in the chosen
 // editor: its label, and whether it is disabled.
@@ -65,6 +70,31 @@ type editorResult struct {
 // openSFTPInEditor hands the folder the panel shows to the chosen editor, in the
 // background, so a slow opener does not hold a paint.
 func (state *State) openSFTPInEditor(view *sftpView) {
+	state.openSFTPEditorPath(view, "")
+}
+
+func (state *State) canOpenVSCodeFile(view *sftpView, entry sftpclient.Entry) bool {
+	if state.defaultEditor != editorVSCode || view.local || !entry.Mode.IsRegular() || entry.IsDir() || entry.LinkBroken {
+		return false
+	}
+	// VS Code parses colons as line/column separators. A drive prefix in a
+	// Windows SFTP path is fine. Use the native editor for ambiguous names.
+	location := path.Join(view.path, entry.Name)
+	if len(location) >= 4 && location[0] == '/' && location[2:4] == ":/" {
+		location = location[3:]
+	}
+	return !strings.Contains(location, ":")
+}
+
+func (state *State) openSelectedInRemoteEditor(view *sftpView) {
+	entry, ok := state.selectedSFTPEntry(view)
+	if !ok || view.busy || !state.canOpenVSCodeFile(view, entry) {
+		return
+	}
+	state.openSFTPEditorPath(view, entry.Name)
+}
+
+func (state *State) openSFTPEditorPath(view *sftpView, fileName string) {
 	folder := view.active()
 	label, disabled := state.sftpEditorItem(view, folder)
 	session, ok := state.sftpSession(view)
@@ -72,6 +102,9 @@ func (state *State) openSFTPInEditor(view *sftpView) {
 		return
 	}
 	request := state.editorRequestFor(view, folder, session)
+	if fileName != "" {
+		request.directory = path.Join(folder.path, fileName)
+	}
 	open := state.options.OpenSchemeURL
 	customExecutable := state.customEditorPath
 	launchCustom := state.options.LaunchCustomEditor
@@ -86,7 +119,7 @@ func (state *State) openSFTPInEditor(view *sftpView) {
 		if request.editor == editorCustom {
 			err = launchCustom(customExecutable, request.directory)
 		} else {
-			err = request.open(open)
+			err = request.open(open, fileName != "")
 		}
 		results <- editorResult{editor: request.editor, directory: request.directory, err: err}
 		notify()

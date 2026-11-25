@@ -808,7 +808,7 @@ func (state *State) declareAIPanelBody(c ui.C) {
 	ui.Column(c).Fill().DrawOver(panel.overDraw).Children(func() {
 		// The title row: the name, a new conversation, the history, and the way out.
 		ui.Row(c).Height(aiTitleRow).PadX(aiPad).Gap(4).Items(ui.Center).Children(func() {
-			ui.Icon(c, lucideIcons[iconBot]).Color(pal.accent).MarginSides(0, 4, 0, 0)
+			ui.Icon(c, lucideIcons[iconSparkles]).Color(pal.accent).MarginSides(0, 4, 0, 0)
 			ui.Text(c, m.Title).FontSize(metrics.FontSizeM).Bold().Color(pal.text).LineHeight(22).Grow(1)
 			panel.body.newChat = state.declareIconButton(c, hitAINew, iconPlus, m.NewConversation, ai.run != nil, iconButtonQuiet).Size(barToolSize, barToolSize)
 			panel.body.history = state.declareIconButton(c, hitAIHistory, iconHistory, m.History, false, historyStyle(panel.history)).Size(barToolSize, barToolSize)
@@ -893,7 +893,7 @@ func (state *State) declareAIEmpty(c ui.C) ui.Box {
 	return ui.Column(c).Grow(1).FillWidth().PadX(aiPad).Clip().Children(func() {
 		ui.Spacer(c).MinHeight(8)
 		ui.Column(c).Shrink(0).Children(func() {
-			ui.Icon(c, lucideIcons[iconBot]).Size(26, 26).Color(pal.accent).Self(ui.Center)
+			ui.Icon(c, lucideIcons[iconSparkles]).Size(26, 26).Color(pal.accent).Self(ui.Center)
 			ui.Text(c, title).FontSize(aiSizes.title).Bold().Color(pal.text).LineHeight(aiSizes.titleLine).TextCenter().MarginSides(14, 0, 0, 0)
 			ui.Paragraph(c, hint, 4).FontSize(aiSizes.small).Weight(gfx.WeightRegular).Color(pal.muted).LineHeight(aiSizes.smallLine).TextCenter().MarginSides(8, 12, 0, 12)
 			ui.Column(c).Gap(6).MarginSides(16, 0, 6, 0).Children(func() {
@@ -1191,7 +1191,7 @@ func (state *State) declareAIRunStatusMark(c ui.C) {
 	}
 	icon := iconCircleCheck
 	if state.ai.lastRun != nil && state.ai.lastRun.phase != aiRunCompleted {
-		icon = iconBot
+		icon = iconSparkles
 	}
 	ui.Icon(c, lucideIcons[icon]).Size(12, 12).Color(state.pal.muted).Shrink(0).MarginSides(2, 0, 0, 0)
 }

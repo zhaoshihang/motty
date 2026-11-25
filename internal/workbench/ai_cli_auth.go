@@ -444,6 +444,8 @@ func (s *State) aiCLIError(message string) string {
 		return m.CLIErrVersion
 	case "login_required":
 		return m.CLIErrLogin
+	case "model_catalog_unavailable":
+		return m.CodexModelsUnavailable
 	default:
 		return fmt.Sprintf(m.CLIErrRunFmt, strings.TrimPrefix(message, "cli: "))
 	}

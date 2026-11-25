@@ -27,7 +27,7 @@ import (
 )
 
 // Current is the version of this build. A test keeps it equal to viva.toml's.
-const Current = "0.4.30"
+const Current = "0.4.31"
 
 // Feed is the GitHub release the project publishes its builds to.
 const Feed = "https://api.github.com/repos/t8y2/motty/releases/latest"
@@ -203,9 +203,11 @@ const (
 type Source uint8
 
 const (
+	// SourceCustom reads the repository or Motty mirror chosen on this device.
+	SourceCustom Source = iota
 	// SourceOfficial is the project's own mirror: the signed Viva feed on the
 	// official download host, with its mirror and GitHub fallbacks.
-	SourceOfficial Source = iota
+	SourceOfficial
 	// SourceCNB is the copy of the same signed feed and the same packages on
 	// CNB, for networks where the official host is slow or unreachable.
 	SourceCNB
@@ -213,20 +215,26 @@ const (
 
 // String is the value the setting is saved as.
 func (source Source) String() string {
-	if source == SourceCNB {
+	switch source {
+	case SourceOfficial:
+		return "official"
+	case SourceCNB:
 		return "cnb"
+	default:
+		return "custom"
 	}
-	return "official"
 }
 
-// ParseSource reads a saved source. Anything unknown is the official one, so a
-// file written by an older or newer version never leaves the app without a
-// source.
+// ParseSource uses the fork's default for a missing or unrecognized choice.
 func ParseSource(value string) Source {
-	if value == "cnb" {
+	switch value {
+	case "official":
+		return SourceOfficial
+	case "cnb":
 		return SourceCNB
+	default:
+		return SourceCustom
 	}
-	return SourceOfficial
 }
 
 // CNBFeed is the signed Viva feed published beside the packages on CNB. It is
@@ -259,9 +267,19 @@ func CheckPackage(ctx context.Context, client *http.Client, goos, goarch string,
 // same signed feed from the CNB copy and points the package at the CNB release.
 // When that copy cannot answer, the official feeds still decide, so a mirror
 // that is not published yet never makes updates impossible; the returned error
-// is then the CNB one, because that is the source the user chose. A .deb has no
-// asset in the signed feed, so it keeps the official path whatever the source.
-func CheckPackageFrom(ctx context.Context, client *http.Client, goos, goarch string, pkg Package, source Source) (Release, error) {
+// is then the CNB one. A custom source only checks its own repository or mirror.
+// A .deb uses a mirror because the Viva feed has no Debian asset.
+func CheckPackageFrom(ctx context.Context, client *http.Client, goos, goarch string, pkg Package, source Source, address string) (Release, error) {
+	if source == SourceCustom {
+		feed, github, err := CustomFeed(address)
+		if err != nil {
+			return Release{}, err
+		}
+		if github {
+			return Latest(ctx, client, feed)
+		}
+		return latestMirrorPackage(ctx, client, feed, goos, goarch, pkg)
+	}
 	if source != SourceCNB || pkg == PackageDeb {
 		return CheckPackage(ctx, client, goos, goarch, pkg)
 	}
@@ -673,7 +691,7 @@ func latestMirrorPackage(ctx context.Context, client *http.Client, feed, goos, g
 		if pkg == PackageDeb {
 			name = "motty_" + body.Version + "_" + goarch + ".deb"
 		}
-		pinned := url.URL{Scheme: "https", Host: base.Host, Path: "/releases/" + body.Tag + "/" + name}
+		pinned := base.ResolveReference(&url.URL{Path: "releases/" + body.Tag + "/" + name})
 		release.Asset = Asset{Name: name, URL: pinned.String(), SHA256: file.SHA256, Size: file.Size, Signature: validSignature(file.Signature)}
 		break
 	}

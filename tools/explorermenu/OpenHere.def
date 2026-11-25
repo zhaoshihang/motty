@@ -1,0 +1,4 @@
+LIBRARY OpenHere
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

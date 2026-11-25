@@ -70,6 +70,8 @@ type AISettingsMessages struct {
 	CLIDefaultModel          string
 	CLIModelsNote            string
 	CLIModelsCheck           string
+	CodexModelsFetchedFmt    string
+	CodexModelsUnavailable   string
 
 	CLIAuthTitle      string
 	CLIAuthLogin      string

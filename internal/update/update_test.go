@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -374,14 +375,59 @@ func TestSavedSourceReadsWhatTheSettingWrote(t *testing.T) {
 		value string
 		want  Source
 	}{
-		{"", SourceOfficial}, {"official", SourceOfficial}, {"cnb", SourceCNB}, {"beta", SourceOfficial},
+		{"", SourceCustom}, {"official", SourceOfficial}, {"cnb", SourceCNB}, {"custom", SourceCustom}, {"beta", SourceCustom},
 	} {
 		if got := ParseSource(test.value); got != test.want {
 			t.Errorf("ParseSource(%q) = %v, want %v", test.value, got, test.want)
 		}
 	}
-	if SourceCNB.String() != "cnb" || SourceOfficial.String() != "official" {
-		t.Errorf("sources save as %q and %q", SourceOfficial, SourceCNB)
+	if SourceCNB.String() != "cnb" || SourceOfficial.String() != "official" || SourceCustom.String() != "custom" {
+		t.Errorf("sources save as %q, %q and %q", SourceOfficial, SourceCNB, SourceCustom)
+	}
+}
+
+type feedTransport func(*http.Request) (*http.Response, error)
+
+func (f feedTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestCustomGitHubFeedOnlyChecksTheChosenRepository(t *testing.T) {
+	const api = "https://api.github.com/repos/team/motty/releases/latest"
+	const page = "https://github.com/team/motty/releases/tag/v1.2.3"
+	for _, input := range []string{"team/motty", " https://github.com/team/motty.git ", "https://github.com/team/motty/releases/", "https://github.com/team/motty/releases/latest", api} {
+		feed, github, err := CustomFeed(input)
+		if err != nil || !github || feed != api {
+			t.Fatalf("%q resolved to %q, github %t, err %v", input, feed, github, err)
+		}
+	}
+	for _, input := range []string{"", "not-a-repo", "http://github.com/team/motty", "https://user:pass@example.org/latest.json", "https://github.com/team/motty/issues", "https://github.com/team/..", "https://github.com:8443/team/motty", "team/a b"} {
+		if _, _, err := CustomFeed(input); err == nil {
+			t.Errorf("accepted invalid source %q", input)
+		}
+	}
+	status, calls := http.StatusOK, 0
+	client := &http.Client{Transport: feedTransport(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.URL.String() != api {
+			t.Fatalf("requested %s", r.URL)
+		}
+		return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(`{"tag_name":"v1.2.3","html_url":"` + page + `","body":"fork notes"}`))}, nil
+	})}
+	release, err := CheckPackageFrom(context.Background(), client, "windows", "amd64", PackageArchive, SourceCustom, "team/motty")
+	if err != nil || release.URL != page || release.Notes != "fork notes" || release.Asset.Has() {
+		t.Fatalf("release %+v, error %v", release, err)
+	}
+	status = http.StatusNotFound
+	_, err = CheckPackageFrom(context.Background(), client, "windows", "amd64", PackageArchive, SourceCustom, "team/motty")
+	if !errors.Is(err, ErrNoRelease) || calls != 2 {
+		t.Fatalf("missing repository: %d requests, error %v", calls, err)
+	}
+}
+
+func TestCustomMirrorResolvesPackagesRelativeToItsManifest(t *testing.T) {
+	server := mirrorServer(t, `{"version":"1.2.3","tag":"v1.2.3","source":"https://example.org/release","files":[{"name":"motty-darwin-arm64.zip","size":123,"sha256":"`+goodHash+`","signature":"c2ln"}]}`)
+	release, err := CheckPackageFrom(context.Background(), server.Client(), "darwin", "arm64", PackageArchive, SourceCustom, server.URL+"/team/latest.json")
+	if err != nil || !release.Asset.Signed() || release.Asset.URL != server.URL+"/team/releases/v1.2.3/motty-1.2.3-darwin-arm64.zip" {
+		t.Fatalf("release %+v, error %v", release, err)
 	}
 }
 

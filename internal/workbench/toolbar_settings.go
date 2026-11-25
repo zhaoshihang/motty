@@ -28,9 +28,9 @@ type toolbarSpec struct {
 // available in a particular connection/split/local-files context.
 var toolbarCatalog = [3][]toolbarSpec{
 	toolbarWindow: {
-		{"transfers", hitTransferCenter, iconTransfer}, {"hosts", hitHostsPanel, iconDirectoryTree}, {"assistant", hitAIToggle, iconBot},
+		{"transfers", hitTransferCenter, iconTransfer}, {"hosts", hitHostsPanel, iconDirectoryTree}, {"assistant", hitAIToggle, iconSparkles},
 		{"local-terminal", hitWindowLocalTerminal, iconTerminal}, {"commands", hitCommandPalette, iconSearch},
-		{"theme", hitTheme, iconMoon}, {"github", hitGitHub, iconGitHub}, {"settings", hitWindowSettings, iconSettings},
+		{"theme", hitTheme, iconMoon}, {"settings", hitWindowSettings, iconSettings},
 	},
 	toolbarTerminal: {
 		// Latency is a status readout, not an action: it shares the Settings >
@@ -218,8 +218,6 @@ func (state *State) toolbarLabel(id gfx.ID) string {
 		return m.CommandPaletteTitle
 	case hitTheme:
 		return m.SettingsAppearance
-	case hitGitHub:
-		return m.LabelGitHub
 	case hitWindowSettings:
 		return m.NavSettings
 	case hitBroadcast:

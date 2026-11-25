@@ -37,7 +37,8 @@ type savedState struct {
 	RecentConnections map[string]time.Time `json:"recent_connections,omitempty"`
 	// LocalShellsExpanded keeps the new-tab picker listing the shells under the
 	// Local Terminal row once the user has opened it there.
-	LocalShellsExpanded bool `json:"local_shells_expanded,omitempty"`
+	LocalShellsExpanded bool                     `json:"local_shells_expanded,omitempty"`
+	LocalShortcuts      map[string]localShortcut `json:"local_shortcuts,omitempty"`
 
 	MonitorPanels              []monitoring.Panel      `json:"monitor_panels,omitempty"`
 	MonitorActive              string                  `json:"monitor_active,omitempty"`
@@ -155,6 +156,7 @@ type savedState struct {
 	Toolbars                *savedToolbars      `json:"toolbars,omitempty"`
 	UpdateCheck             string              `json:"update_check,omitempty"`
 	UpdateSource            string              `json:"update_source,omitempty"`
+	UpdateAddress           string              `json:"update_address,omitempty"`
 	CloseAction             string              `json:"close_action,omitempty"`
 	KeepWindowsOnExit       string              `json:"keep_windows_on_exit,omitempty"`
 	RelaunchAction          string              `json:"relaunch_action,omitempty"`
@@ -566,6 +568,7 @@ func (state *State) snapshot() savedState {
 		TerminalOption:             state.terminalOption.String(),
 		LocalShell:                 state.localShell,
 		LocalStartupCommands:       maps.Clone(state.localStartupCommands),
+		LocalShortcuts:             maps.Clone(state.localShortcuts),
 		HiddenShells:               slices.Clone(state.hiddenShells),
 		LocalStart:                 state.localStart.String(),
 		LastLocalDirectory:         state.lastLocalDirectory,
@@ -653,6 +656,7 @@ func (state *State) snapshot() savedState {
 		Toolbars:                   state.toolbars.sharedSnapshot(state.terminalToolbarPosition, state.terminalToolbarSize),
 		UpdateCheck:                updateCheckString(state.updateAtStart),
 		UpdateSource:               state.update.source.String(),
+		UpdateAddress:              state.update.address,
 		CloseAction:                state.closeAction.String(),
 		KeepWindowsOnExit:          state.keepWindows.String(),
 		RelaunchAction:             state.relaunchAction.String(),
@@ -1089,12 +1093,16 @@ func (state *State) reloadSettings() error {
 	if saved.AICLIProviders == nil && state.recordedProviders(kindAICLIProvider) > 0 {
 		saved.AICLIProviders = &[]savedAIProvider{}
 	}
+	shortcutsChanged := !maps.Equal(state.localShortcuts, saved.LocalShortcuts)
 	state.restoreSettings(saved)
 	state.configBase = base
 	// The next save compares against the base just read: the change is already
 	// in the store, and writing it back would only hand it round again.
 	state.hasSaved = false
 	state.hostDataChanged()
+	if shortcutsChanged && state.modal == modalCommandPalette && state.commandPalette.connect && state.commandPalette.sort == connectSortShortcuts {
+		state.rebuildCommandPalette()
+	}
 	state.rebuildTabOptions()
 	// A font chosen in the other window is one this window has not asked the
 	// platform about yet.
@@ -1121,6 +1129,7 @@ func (state *State) restoreLocal(saved savedState) {
 	state.terminalFindPrefs = saved.TerminalFind.normalized()
 	state.localShell = saved.LocalShell
 	state.localStartupCommands = cleanLocalStartupCommands(saved.LocalStartupCommands)
+	state.localShortcuts = maps.Clone(saved.LocalShortcuts)
 	state.hiddenShells = cleanShellPaths(saved.HiddenShells)
 	state.recentConnectSort = saved.RecentConnectSort
 	state.localShellsExpanded = saved.LocalShellsExpanded

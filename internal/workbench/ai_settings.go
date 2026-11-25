@@ -17,6 +17,7 @@ import (
 	"github.com/vivaui/viva/gfx"
 	"github.com/vivaui/viva/text"
 	"github.com/vivaui/viva/ui"
+	"motty/internal/ai/cli"
 	"motty/internal/ai/mcp"
 	"motty/internal/ai/probe"
 	"motty/internal/ai/reasoning"
@@ -284,6 +285,9 @@ func (state *State) aiSettingsVisible() bool {
 // painting never touches the disk.
 func (state *State) aiSettingsOpened() {
 	_, _ = state.aiStore()
+	if state.settingsCategory == settingsAssistant {
+		state.aiLoadCodexModels()
+	}
 	if state.ai.cfg.agentProgram == "" {
 		state.ai.cfg.agentProgram = state.agentExecutable()
 		state.ai.cfg.agentDataDir = filepath.Dir(state.options.KnownHostsPath)
@@ -817,13 +821,33 @@ func (state *State) aiSelectProvider(index int) {
 	if index >= len(state.ai.providers) {
 		return
 	}
+	state.aiShowProvider(state.ai.providers[index].ID)
+	state.aiLoadCodexModels()
+}
+
+func (state *State) aiShowProvider(id string) {
 	cfg := &state.ai.cfg
-	if cfg.selected != state.ai.providers[index].ID {
-		cfg.selected, cfg.page, cfg.modelErr = state.ai.providers[index].ID, 0, ""
-		cfg.fetched, cfg.fetchErr = false, ""
-		cfg.modelInput = newModelInput()
-		cfg.modelSearch, cfg.modelSearchLast = newModelSearch(), ""
-		cfg.modelFilter, cfg.modelSort = aiModelFilterAll, aiModelSortDefault
+	if cfg.selected == id {
+		return
+	}
+	if cfg.fetch != nil && cfg.fetch.providerID != id {
+		state.cancelAIFetch()
+	}
+	cfg.selected, cfg.page, cfg.modelErr = id, 0, ""
+	cfg.fetched, cfg.fetchErr = false, ""
+	cfg.modelInput = newModelInput()
+	cfg.modelSearch, cfg.modelSearchLast = newModelSearch(), ""
+	cfg.modelFilter, cfg.modelSort = aiModelFilterAll, aiModelSortDefault
+}
+
+// An existing Codex provider may only have the default placeholder from an
+// earlier build. Fetch once when its settings are shown. The button can retry.
+func (state *State) aiLoadCodexModels() {
+	cfg := &state.ai.cfg
+	provider, ok := state.aiSelectedProvider()
+	if ok && provider.Enabled && provider.Kind == store.KindCodexCLI && cfg.fetch == nil && !cfg.fetched {
+		state.aiShowProvider(provider.ID)
+		state.aiFetchModels()
 	}
 }
 
@@ -851,6 +875,9 @@ func (state *State) aiToggleProvider(index int) {
 		return
 	}
 	state.aiWrote()
+	if provider.Enabled {
+		state.aiLoadCodexModels()
+	}
 }
 
 // aiOpenProviderForm opens the provider dialog for a new provider (id empty)
@@ -980,7 +1007,7 @@ func (state *State) aiSubmitProvider() {
 		return
 	}
 	if cfg.editID == "" {
-		cfg.selected, cfg.page = provider.ID, 0
+		state.aiShowProvider(provider.ID)
 	}
 	if resetAuth {
 		state.aiResetCLIAuth(provider.ID)
@@ -988,7 +1015,8 @@ func (state *State) aiSubmitProvider() {
 	state.aiCloseDialog()
 	state.aiWrote()
 	if refetch && provider.Enabled {
-		cfg.selected, cfg.page = provider.ID, 0
+		state.aiShowProvider(provider.ID)
+		cfg.page = 0
 		state.cancelAIFetch()
 		state.aiFetchModels()
 	}
@@ -1046,10 +1074,10 @@ func (state *State) aiDeleteProvider(id string) {
 		state.aiCancelProbe()
 	}
 	if cfg.selected == id {
-		cfg.selected, cfg.page, cfg.fetched, cfg.modelErr = "", 0, false, ""
-		cfg.modelSearch, cfg.modelSearchLast = newModelSearch(), ""
+		state.aiShowProvider("")
 	}
 	state.aiWrote()
+	state.aiLoadCodexModels()
 }
 
 // aiModelsOf counts the models of a provider and how many are enabled,
@@ -1432,39 +1460,44 @@ func (state *State) aiFetchDone(fetch *aiFetch, names []string, err error, key s
 	}
 	cfg.fetch = nil
 	fetch.cancel()
-	if err != nil {
-		cfg.fetched, cfg.fetchErr = true, state.aiScrub(err.Error(), key)
+	provider, ok := state.aiProviderByID(fetch.providerID)
+	if !ok {
 		return
 	}
-	if _, ok := state.aiProviderByID(fetch.providerID); !ok {
-		return
+	if err != nil {
+		cfg.fetched, cfg.fetchErr = true, state.aiScrub(err.Error(), key)
+		if !errors.Is(err, cli.ErrModelCatalog) || provider.Kind != store.KindCodexCLI || len(state.aiModelList(provider.ID)) != 0 {
+			return
+		}
+		// An older CLI can still chat through its own default. Seed it only
+		// for a new provider so a failed refresh preserves the cached list.
+		names = []string{"default"}
 	}
 	// The new list replaces the old one, except what the user chose: models that
 	// are enabled or are the default stay even when the provider no longer lists
 	// them (a manually added model, say).
-	seen := make(map[string]bool, len(names))
+	listed := make(map[string]int, len(names))
 	var merged []store.Model
 	for _, name := range names {
 		name = strings.TrimSpace(name)
-		if name == "" || seen[name] || !probe.IsChatOrReasoningModel(name) {
+		if _, duplicate := listed[name]; name == "" || duplicate || !probe.IsChatOrReasoningModel(name) {
 			continue
 		}
-		seen[name] = true
-		merged = append(merged, store.Model{ProviderID: fetch.providerID, Name: name})
+		listed[name] = len(merged)
+		merged = append(merged, store.Model{ProviderID: fetch.providerID, Name: name, Enabled: provider.Kind == store.KindCodexCLI})
 		if len(merged) >= 2000 {
 			break
 		}
 	}
 	for _, old := range state.aiModelList(fetch.providerID) {
-		for index := range merged {
-			if merged[index].Name == old.Name {
-				merged[index].Enabled = old.Enabled
-			}
+		if index, ok := listed[old.Name]; ok {
+			merged[index] = old
+			continue
 		}
 		// What the user chose stays stored even when the list no longer shows
 		// it: a non-chat model saved by an earlier version is hidden from the
 		// list, not deleted from the database here.
-		if !seen[old.Name] && (old.Enabled || state.aiIsDefault(old.ProviderID, old.Name)) {
+		if old.Enabled || state.aiIsDefault(old.ProviderID, old.Name) {
 			merged = append(merged, old)
 		}
 	}
@@ -1486,7 +1519,10 @@ func (state *State) aiFetchDone(fetch *aiFetch, names []string, err error, key s
 		cfg.fetched, cfg.fetchErr = true, state.aiScrub(derr.Error(), key)
 		return
 	}
-	cfg.fetched, cfg.fetchCount = true, len(seen)
+	cfg.fetched, cfg.fetchCount = true, len(listed)
+	if _, hasAlias := listed["default"]; provider.Kind == store.KindCodexCLI && hasAlias {
+		cfg.fetchCount-- // The local alias is separate from the CLI's catalog.
+	}
 	state.aiWrote()
 }
 

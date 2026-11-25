@@ -341,6 +341,26 @@ build_package() {
 			portable+=(-file "$entry")
 		done < <(windows_conpty_files "$arch")
 		[ ${#conpty[@]} -gt 0 ] || { echo "   no conpty files for windows/$arch" >&2; return 1; }
+		conpty+=(--file "tools/settings-gist.ps1=settings-gist.ps1")
+		portable+=(-file "tools/settings-gist.ps1=settings-gist.ps1")
+		if command -v cygpath >/dev/null && command -v powershell.exe >/dev/null; then
+			local app_dir menu_arch file
+			local -a certificate=() files=(OpenHere.dll AppxManifest.xml MottyExplorer.msix Logo.png menu.ico)
+			app_dir=$(cygpath -m "$(dirname "$program")") || return
+			menu_arch=$arch
+			[ "$arch" != amd64 ] || menu_arch=x64
+			if [ -n "${MOTTY_EXPLORER_CERT_SHA1:-}" ]; then
+				certificate=(-CertificateThumbprint "$MOTTY_EXPLORER_CERT_SHA1")
+				files+=(Publisher.cer)
+			fi
+			powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/explorermenu/build.ps1 \
+				-Variant Release -Architecture "$menu_arch" -AppDirectory "$app_dir" -Version "$version.0" "${certificate[@]}" || return
+			for file in "${files[@]}"; do
+				entry="$app_dir/motty.explorer/$file=motty.explorer/$file"
+				conpty+=(--file "$entry")
+				portable+=(-file "$entry")
+			done
+		fi
 	fi
 	# The portable copy holds these same signed bytes (see internal/datadir).
 	if [ "$target" = windows ]; then

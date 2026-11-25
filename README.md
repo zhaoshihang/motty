@@ -97,7 +97,7 @@ echo; [docs/mosh.md](docs/mosh.md) lists what such a session does not carry.
 [docs/remote-desktop.md](docs/remote-desktop.md) lists what the VNC and RDP
 implementations do not do, and the release notes say which platforms were
 tested on real hardware. **Nothing phones home:** no analytics, and the update
-check is off by default and asks GitHub Releases when you turn it on.
+check is off by default and uses the source selected on this device.
 
 ## Install
 
@@ -137,6 +137,12 @@ Scoop installs the portable copy but manages its version directories: its
 `motty-data` folder is persisted across versions and `scoop update motty` is how
 it updates.
 
+**Settings → About → Updates → Update source** defaults to **Custom** and checks
+the `zhaoshihang/motty` fork. To change the address, enter a public GitHub repository
+or the HTTPS URL of a Motty mirror manifest and select **Save address**. A GitHub release opens its own
+download page. A self-hosted mirror serves packages under `releases/v<version>/`
+beside `latest.json`. In-app installation verifies the package signature.
+
 ## Quick start
 
 1. Open **Hosts** and choose **New host**.
@@ -170,6 +176,22 @@ monitor samples the distribution itself. Choose the distribution here, rather
 than typing `wsl` into PowerShell: only a shell Motty starts itself can report
 its folder. The choice stays on this computer and applies to new or reconnected
 local terminals.
+
+On Windows 11, right-click a folder or the background inside it and choose
+**Open Motty Dev shell here** directly from the main menu. Explorer determines
+its position among other commands. Drive items are supported from Windows 11
+22H2. From the command line, use `.\motty-dev.exe --local-dir "D:\Projects"`.
+
+For a source build, build `motty-dev.exe`, then run
+`.\tools\explorermenu\build.ps1` with the Visual Studio C++ build tools and
+Windows 11 SDK installed. Keep the generated `motty-dev.explorer` folder
+beside the executable. With Windows Developer Mode enabled, run
+`.\motty-dev.exe --register-shell-menu` to register the development layout.
+On other machines, first sign the folder's `MottyExplorer.msix` with a trusted
+code-signing certificate matching the build script's `-Publisher`. Windows 10
+uses the classic menu and needs only the registration command. Remove the menu
+with `.\motty-dev.exe --unregister-shell-menu`. For release builds use
+`-Variant Release` and `motty.exe`.
 
 ## Features
 
@@ -267,14 +289,23 @@ Replacing a file stages a partial copy, verifies resumed prefixes and renames
 atomically only after a complete synced copy. The previous file stays intact on
 failure.
 
-A native editor opens UTF-8 files up to 1 MiB, hashes the remote file before and
-after staging, and preserves permissions. Servers without SFTP can use the
+Double-click a remote text file or choose **Edit remote file** from its context
+menu to edit it over the existing connection. The native editor defaults to
+20 MiB per file, adjustable in **Settings → Files**. Saves preserve encoding,
+line endings and permissions. If the remote content changes, the editor can
+show both versions for comparison. Servers without SFTP can use the
 built-in SCP fallback. It edits code in a fixed-pitch grid with line numbers,
 syntax colors, bracket matching, soft wrap, auto-indent that follows the file's
 own tabs or spaces, paired brackets and quotes, Tab/Shift+Tab block indent,
 line comment toggling (Cmd/Ctrl+/), line move/copy/delete (Alt+Up/Down,
 Shift+Alt+Up/Down, Cmd/Ctrl+Shift+K), find and replace (Cmd/Ctrl+F, Ctrl+H) with
 case, whole-word and regular-expression options, and go to line (Ctrl+G).
+
+For a project, set the default editor to **VS Code** under **Settings → Files**.
+Choose **Open in VS Code** on a remote file or use the folder menu to open the
+directory. Install the Remote - SSH extension locally and use a host that
+supports VS Code Server. The local OpenSSH configuration can supply credentials
+and jump hosts. See [VS Code Remote - SSH](https://code.visualstudio.com/docs/remote/ssh).
 
 For files that the SSH account can read but cannot change (such as root-owned
 configuration), switch on the **sudo** toggle beside the remote pane title (or
@@ -436,8 +467,8 @@ identity, `MOTTY_DATA_DIR`, profile import, and the storage epoch 23 rules.
 - AI provider keys are in the vault. Terminal context is redacted by default, and
   agent commands pass through the approval gate.
 - The MCP server is off by default, loopback-only and bearer-token protected.
-- Motty has no analytics. The optional update check contacts GitHub Releases and
-  is off by default.
+- Motty has no analytics. Automatic update checks are off by default and use the
+  source selected on this device.
 
 The approval gate is a safety control, not a sandbox. Do not point an agent at a
 host where a wrong command is unacceptable.

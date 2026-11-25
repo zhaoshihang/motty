@@ -27,14 +27,25 @@ var (
 	hitConnectPickEdit         = tree.Sub(connectPickerHits, tree.Name("connect-pick-edit"))
 	hitConnectPickWorkspaceNew = tree.ID(connectPickerHits, "workspace-new")
 	hitConnectPickWorkspaces   = tree.Sub(connectPickerHits, tree.Name("workspace-template"))
+	hitConnectShortcutNew      = tree.ID(connectPickerHits, "local-shortcut-new")
+	hitConnectShortcuts        = tree.Sub(connectPickerHits, tree.Name("local-shortcut"))
+	hitConnectShortcutEdit     = tree.Sub(connectPickerHits, tree.Name("local-shortcut-edit"))
 )
 
 func (state *State) openConnectPicker() {
+	tab := connectSortDefault
+	if state.recentConnectSort {
+		tab = connectSortRecent
+	}
+	state.openConnectPickerTab(tab)
+}
+
+func (state *State) openConnectPickerTab(tab connectSortChoice) {
 	if localShellSettingVisible() {
 		state.refreshLocalShells()
 	}
 	state.commandPalette.connect, state.commandPalette.snippets = true, false
-	state.commandPalette.workspaces = false
+	state.commandPalette.sort = tab
 	// The shells list opens the way the user left it: expanding it is a choice
 	// that outlives one opening of the picker.
 	state.commandPalette.localShells = state.localShellsExpanded
@@ -56,30 +67,24 @@ func (state *State) setLocalShellsExpanded(expanded bool) {
 
 func (state *State) rebuildConnectPicker() {
 	palette := &state.commandPalette
-	if palette.workspaces {
+	switch palette.sort {
+	case connectSortShortcuts:
+		state.addLocalShortcutRows()
+	case connectSortWorkspaces:
 		palette.add(state.messages.WorkspaceNew, hitConnectPickWorkspaceNew)
 		for index, template := range state.templates {
 			palette.addDetailed(template.Name, fmt.Sprintf(state.messages.WorkspaceTemplateHostCountFmt, len(template.HostIDs)), hitConnectPickWorkspaces.At(index))
 		}
-		palette.rawQuery, palette.query, palette.filtered = "", "", false
-		state.refreshCommandPalette()
-		return
+	case connectSortDefault:
+		var previousGroup *hostGroup
+		state.eachConnectPickerCandidate(func(item connectPickerCandidate) {
+			if item.group != nil && item.group != previousGroup {
+				palette.addHeader(state.hostGroupLabel(*item.group), item.group.Count)
+			}
+			previousGroup = item.group
+			palette.addCandidate(item)
+		})
 	}
-	if state.recentConnectSort {
-		palette.filtered = false
-		state.refreshCommandPalette()
-		return
-	}
-	var previousGroup *hostGroup
-	state.eachConnectPickerCandidate(func(item connectPickerCandidate) {
-		if item.group != nil && item.group != previousGroup {
-			palette.addHeader(state.hostGroupLabel(*item.group), item.group.Count)
-		}
-		previousGroup = item.group
-		palette.addCandidate(item)
-	})
-	palette.rawQuery = ""
-	palette.query = ""
 	palette.filtered = false
 	state.refreshCommandPalette()
 }
@@ -143,13 +148,16 @@ func (state *State) shellsListed() {
 	}
 }
 
-// connectPickEdit is the pencil of a host row, named by the host: zero for the
-// rows that are not a saved host.
+// connectPickEdit is the pencil belonging to an editable row.
 func connectPickEdit(target gfx.ID) gfx.ID {
-	if target.Scope() != hitConnectPickList {
+	switch target.Scope() {
+	case hitConnectPickList:
+		return hitConnectPickEdit.At(item(target))
+	case hitConnectShortcuts:
+		return hitConnectShortcutEdit.At(item(target))
+	default:
 		return gfx.ID{}
 	}
-	return hitConnectPickEdit.At(item(target))
 }
 
 // clickConnectPick connects the picker's choice in a tab of its own.

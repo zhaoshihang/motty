@@ -1,7 +1,7 @@
 package i18n
 
 // AboutMessages are the texts of the About page of the settings: the
-// application's version, where to talk about it and where it is developed.
+// application's identity and its updates.
 type AboutMessages struct {
 	Title string // the settings category, and the page's title
 
@@ -26,26 +26,4 @@ type AboutMessages struct {
 	CopyAction      string
 	CopiedAction    string // the button's label once the facts are on the clipboard
 	Copied          string
-
-	// Where to ask, and what each place is for.
-	CommunityTitle     string
-	QQ                 string
-	QQDescription      string
-	WeChat             string
-	WeChatDescription  string
-	Discord            string
-	DiscordDescription string
-	Issues             string
-	IssuesDescription  string
-	ProjectTitle       string
-	Repo               string
-	RepoDescription    string
-	Docs               string
-	DocsDescription    string
-	// Viva is the desktop framework Motty is built on, listed with the project
-	// like the repository and the site.
-	Viva            string
-	VivaDescription string
-	Join            string
-	Open            string
 }

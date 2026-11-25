@@ -31,8 +31,7 @@ type Image struct {
 func DecodeImage(data []byte, name string) (*Image, error) {
 	config, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		switch strings.ToLower(filepath.Ext(name)) {
-		case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".ico", ".svg", ".avif", ".heic":
+		if imageFileName(name) {
 			return nil, ErrUnsupportedImage
 		}
 		return nil, nil
@@ -58,6 +57,27 @@ func DecodeImage(data []byte, name string) (*Image, error) {
 		}
 	}
 	return &Image{Pix: pix, Width: w, Height: h, Format: format}, nil
+}
+
+func imageFileName(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".ico", ".svg", ".avif", ".heic":
+		return true
+	}
+	return false
+}
+
+// TextCandidate excludes formats the document window can only preview or refuse.
+// An unknown extension can still be text. The decoder checks its bytes on open.
+func TextCandidate(name string) bool {
+	if imageFileName(name) {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".bin", ".exe", ".dll", ".zip", ".gz", ".7z", ".pdf", ".db", ".sqlite", ".tar", ".rar", ".so", ".dylib", ".jar", ".mp3", ".mp4":
+		return false
+	}
+	return true
 }
 
 // KnownBinary recognizes formats that must never be offered as editable text.

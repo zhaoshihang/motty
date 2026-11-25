@@ -62,7 +62,7 @@ func TestNewTabWorkspaceTabLaunchesTemplatesAndCreatesWorkspaces(t *testing.T) {
 	before := len(state.deck.Workspaces(nil))
 	state.Click(hitNewTab)
 	clickSettingsChoice(t, state, state.messages.WorkspaceLibraryTitle)
-	if !state.commandPalette.workspaces || len(state.deck.Workspaces(nil)) != before {
+	if state.commandPalette.sort != connectSortWorkspaces || len(state.deck.Workspaces(nil)) != before {
 		t.Fatal("switching to workspaces opened a tab")
 	}
 	clickPickerRow(t, state, template.Name)
@@ -89,12 +89,12 @@ func TestNewTabWorkspaceTabFiltersTemplatesAndKeepsHostSort(t *testing.T) {
 		t.Fatalf("workspace matches = %v", got)
 	}
 	clickSettingsChoice(t, state, state.messages.NewTabSortDefault)
-	if state.recentConnectSort || state.commandPalette.workspaces {
+	if state.recentConnectSort || state.commandPalette.sort != connectSortDefault {
 		t.Fatal("default hosts mode was not restored")
 	}
 	clickSettingsChoice(t, state, state.messages.WorkspaceLibraryTitle)
 	clickSettingsChoice(t, state, state.messages.NewTabSortRecent)
-	if !state.recentConnectSort || state.commandPalette.workspaces {
+	if !state.recentConnectSort || state.commandPalette.sort != connectSortRecent {
 		t.Fatal("recent hosts mode was not restored")
 	}
 }

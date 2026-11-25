@@ -7,6 +7,7 @@ import (
 
 	"github.com/vivaui/viva/gfx"
 	"motty/internal/i18n"
+	"motty/internal/update"
 )
 
 func TestAboutBuildMetadataAndMissingInformation(t *testing.T) {
@@ -47,12 +48,10 @@ func TestAboutBuildMetadataAndMissingInformation(t *testing.T) {
 	}
 }
 
-func TestAboutShowsTheBuildAndOpensTheCommunityLinks(t *testing.T) {
+func TestAboutShowsBuildAndUpdates(t *testing.T) {
 	state := newTestState(t, testOptions(t))
 	var copied string
 	state.options.SetClipboardText = func(value string) error { copied = value; return nil }
-	var opened []string
-	state.options.OpenURL = func(url string) error { opened = append(opened, url); return nil }
 
 	state.Click(hitSettings)
 	state.selectSettingsCategory(settingsAbout)
@@ -69,12 +68,12 @@ func TestAboutShowsTheBuildAndOpensTheCommunityLinks(t *testing.T) {
 	}
 	facts := aboutFacts()
 	tools := state.messages.Tools
-	for _, want := range []string{about.Tagline, about.InfoTitle, about.UpdateTitle, tools.GeneralUpdateStartup, tools.GeneralUpdate, about.CommunityTitle, about.ProjectTitle, about.QQ, about.WeChat, about.Discord, about.Viva, facts.platform, facts.runtime} {
+	for _, want := range []string{about.Tagline, about.InfoTitle, about.UpdateTitle, tools.GeneralUpdateStartup, tools.GeneralUpdate, facts.platform, facts.runtime} {
 		if !contains(texts, want) {
 			t.Errorf("the About page does not paint %q", want)
 		}
 	}
-	for _, id := range []gfx.ID{hitAboutCopyInfo, hitSettingsUpdateStartToggle, hitSettingsUpdateCheck, hitAboutQQ, hitAboutWeChat, hitAboutDiscord, hitAboutIssues, hitAboutRepo, hitAboutDocs, hitAboutViva} {
+	for _, id := range []gfx.ID{hitAboutCopyInfo, hitSettingsUpdateStartToggle, hitSettingsUpdateCheck} {
 		if _, ok := hitByID(&canvas, id); !ok {
 			t.Errorf("the About page does not paint %d", id)
 		}
@@ -103,22 +102,76 @@ func TestAboutShowsTheBuildAndOpensTheCommunityLinks(t *testing.T) {
 		t.Errorf("the copy button says %q on a new visit, want %q", hit.Label, about.CopyAction)
 	}
 
-	for _, link := range []struct {
-		id  gfx.ID
-		url string
-	}{
-		{hitAboutQQ, aboutQQURL},
-		{hitAboutWeChat, aboutWeChatURL},
-		{hitAboutDiscord, aboutDiscordURL},
-		{hitAboutIssues, aboutIssuesURL},
-		{hitAboutRepo, aboutRepoURL},
-		{hitAboutDocs, aboutDocsURL},
-		{hitAboutViva, aboutVivaURL},
-	} {
-		opened = nil
-		state.Click(link.id)
-		if len(opened) != 1 || opened[0] != link.url {
-			t.Errorf("%d opened %v, want %q", link.id, opened, link.url)
+	for _, removed := range []string{"Community", "Project", "QQ group", "Discord group", "Source repository"} {
+		if contains(texts, removed) {
+			t.Errorf("removed About section or link still visible: %q", removed)
 		}
+	}
+}
+
+func TestCustomUpdateAddressCanBeTypedSavedAndReopened(t *testing.T) {
+	options := testOptions(t)
+	options.CheckUpdate = func() (update.Release, error) { return update.Release{}, update.ErrNoRelease }
+	state := newTestState(t, options)
+	state.Click(hitSettings)
+	state.selectSettingsCategory(settingsAbout)
+	m := state.messages.Tools
+	if state.update.source != update.SourceCustom || state.update.address != update.DefaultCustomAddress || state.update.addressDraft != state.update.address {
+		t.Fatalf("initial source %v, address %q, draft %q", state.update.source, state.update.address, state.update.addressDraft)
+	}
+	driver := labelDriver(t, state)
+	if err := driver.Resize(1280, 1150); err != nil {
+		t.Fatal(err)
+	}
+	input := hitOf(t, driver, hitUpdateAddress)
+	typeAddress := func(draft string) {
+		t.Helper()
+		if err := driver.Click(input.Bounds.X+8, input.Bounds.Y+input.Bounds.Height/2); err != nil {
+			t.Fatal(err)
+		}
+		if err := driver.SelectText(0, len(state.update.addressDraft)); err != nil {
+			t.Fatal(err)
+		}
+		if err := driver.Type(draft); err != nil {
+			t.Fatal(err)
+		}
+		clickPaintedLabel(t, driver, m.GeneralUpdateAddressSave)
+	}
+	typeAddress("owner/motty")
+	waitUpdate(t, state, func() bool { return !state.update.checking })
+	if state.update.address != "owner/motty" || state.update.addressInvalid {
+		t.Fatalf("valid address not saved: %q", state.update.address)
+	}
+	typeAddress("http://invalid.example")
+	if !state.update.addressInvalid || state.update.address != "owner/motty" {
+		t.Fatal("an invalid draft replaced the saved repository")
+	}
+	reopened := newTestState(t, options)
+	if reopened.update.source != update.SourceCustom || reopened.update.addressDraft != "owner/motty" || reopened.update.address != reopened.update.addressDraft {
+		t.Fatalf("reopened source %v, address %q, draft %q", reopened.update.source, reopened.update.address, reopened.update.addressDraft)
+	}
+}
+
+func TestSavedUpdateChoicesSurviveTheForkDefault(t *testing.T) {
+	for _, tc := range []struct {
+		source, address string
+		wantSource      update.Source
+		wantAddress     string
+	}{
+		{"custom", "", update.SourceCustom, update.DefaultCustomAddress},
+		{"official", "", update.SourceOfficial, update.DefaultCustomAddress},
+		{"cnb", "team/other", update.SourceCNB, "team/other"},
+	} {
+		t.Run(tc.source, func(t *testing.T) {
+			options := testOptions(t)
+			saved := savedState{UpdateSource: tc.source, UpdateAddress: tc.address}
+			if err := saveState(options.StatePath, saved); err != nil {
+				t.Fatal(err)
+			}
+			state := newTestState(t, options)
+			if state.update.source != tc.wantSource || state.update.address != tc.wantAddress || state.update.addressDraft != tc.wantAddress {
+				t.Fatalf("restored source %v, address %q, draft %q", state.update.source, state.update.address, state.update.addressDraft)
+			}
+		})
 	}
 }

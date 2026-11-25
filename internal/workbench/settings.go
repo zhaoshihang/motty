@@ -648,11 +648,14 @@ var (
 	settingsCloseChoices           = [...]closeAction{closeToTray, closeQuits}
 	settingsKeepWindowsChoices     = [...]keepWindowsPolicy{keepWindowsAlways, keepWindowsNever, keepWindowsAsk}
 	settingsRelaunchChoices        = [...]relaunchAction{relaunchRaise, relaunchNewWindow}
-	settingsUpdateSourceChoices    = [...]update.Source{update.SourceOfficial, update.SourceCNB}
+	settingsUpdateSourceChoices    = [...]update.Source{update.SourceOfficial, update.SourceCNB, update.SourceCustom}
 )
 
 // settingsUpdateSourceLabel names an update source for its choice row.
 func (state *State) settingsUpdateSourceLabel(source update.Source) string {
+	if source == update.SourceCustom {
+		return state.messages.Tools.GeneralUpdateSourceCustom
+	}
 	if source == update.SourceCNB {
 		return state.messages.Tools.GeneralUpdateSourceCNB
 	}

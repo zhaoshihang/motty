@@ -19,14 +19,14 @@ import (
 func TestEverySavedStateFieldIsSharedOrKeptOnThisDevice(t *testing.T) {
 	ownDevice := map[string]bool{
 		"notes_view": true, "note_sidebars": true, "recent_connect_sort": true, "recent_connections": true,
-		"monitor_panels": true, "monitor_active": true,
+		"monitor_panels": true, "monitor_active": true, "corners": true,
 		"language": true, "theme": true, "icon_color": true, "network_proxy": true, "terminal_font_size": true, "text_scale": true, "interface_text_size": true, "interface_font": true, "interface_font_main_weight": true, "interface_font_bold_weight": true, "terminal_font_face": true, "terminal_font_family": true, "terminal_font_main_weight": true, "terminal_font_bold_weight": true, "terminal_font_fallbacks": true,
 		"restore_connect": true, "share_connections": true, "update_check": true, "close_action": true, "keep_windows_on_exit": true, "relaunch_action": true, "tray_hint_shown": true, "update_skipped": true, "ai_panel_width": true, "ai_composer_height": true,
 
 		// Which host an update is downloaded from depends on the network this
 		// computer is on, like its proxy: another device picks its own.
-		"update_source": true,
-		"ssh_browser":   true,
+		"update_source": true, "update_address": true,
+		"ssh_browser": true,
 
 		"sftp_panel_width": true, "monitor_panel_width": true,
 		// Legacy mirrors remain local; the canonical values travel in toolbars.
@@ -68,6 +68,7 @@ func TestEverySavedStateFieldIsSharedOrKeptOnThisDevice(t *testing.T) {
 		// The commands a computer's local shells type when they start name its own
 		// shells and set up its own locale, so another device keeps its own.
 		"local_startup_commands": true,
+		"local_shortcuts":        true,
 		// Whether the command bar shows, where it docks, which groups it filters
 		// and how it orders them are this computer's own layout, not a
 		// preference to sync.
@@ -115,7 +116,8 @@ func richState() savedState {
 		Version: stateFileVersion, HostCatalogVersion: hostCatalogSchemaVersion, ShortcutVersion: shortcutSchemaVersion,
 		Language: "zh-CN", Theme: "dark", NetworkProxy: "system", TabOrientation: "vertical", VerticalTabsAutoHide: true, FullscreenBarAutoHide: true, LocalShell: "/opt/local-shell/bin/shell", LocalStartupCommands: map[string]string{"/opt/local-shell/bin/shell": "export LANG=zh_CN.UTF-8"}, TerminalFontSize: 15, TerminalScrollback: 5000, TerminalPadding: "roomy", TerminalWordSeparators: "-/", HiddenHostTags: []string{"dev", "prod"},
 		RecentConnectSort: true, RecentConnections: map[string]time.Time{"host_b": time.Date(2026, 11, 3, 8, 0, 0, 0, time.UTC)},
-		SFTPParallel: 2, SFTPTerminalFollow: true, SFTPTransferFilter: 1, CommandHistory: true,
+		LocalShortcuts: map[string]localShortcut{"example": {Shell: "/bin/bash", Directory: "/tmp"}},
+		SFTPParallel:   2, SFTPTerminalFollow: true, SFTPTransferFilter: 1, CommandHistory: true,
 		Hosts: []savedHost{
 			{ID: "host_b", Label: "Beta", Address: "b.example.com", User: "me", Port: 22, Group: "prod"},
 			{ID: "host_a", Label: "Alpha", Address: "a.example.com", User: "me", Port: 2222, Group: "dev"},
