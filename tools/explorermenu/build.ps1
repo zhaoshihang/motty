@@ -4,7 +4,7 @@
 param(
     [ValidateSet('Dev', 'Release')][string]$Variant = 'Dev',
     [ValidateSet('x64', 'arm64')][string]$Architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant(),
-    [string]$AppDirectory = (Join-Path $PSScriptRoot '..\..'),
+    [string]$AppDirectory,
     [string]$Publisher,
     [string]$CertificateThumbprint,
     [version]$Version = '1.0.0.0'
@@ -12,6 +12,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+if (!$AppDirectory) { $AppDirectory = $root }
 $appDir = (Resolve-Path -LiteralPath $AppDirectory).Path
 if ($Variant -eq 'Dev') {
     $base = 'motty-dev'

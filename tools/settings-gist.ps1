@@ -4,13 +4,14 @@
 param(
     [ValidateSet('Backup', 'Verify', 'Restore')][string]$Action = 'Backup',
     [string]$Database,
-    [string]$Motty = (Join-Path $PSScriptRoot 'motty.exe'),
+    [string]$Motty,
     [string]$RecoveryFile = (Join-Path $env:LOCALAPPDATA 'MottySettingsBackup\recovery.json')
 )
 $ErrorActionPreference = 'Stop'
 $utf8 = [Text.UTF8Encoding]::new($false)
 $filename = 'motty-settings.encrypted.json'
 $api = 'https://api.github.com'
+if (!$Motty) { $Motty = Join-Path $PSScriptRoot 'motty.exe' }
 $Motty = (Resolve-Path -LiteralPath $Motty).Path
 $RecoveryFile = [IO.Path]::GetFullPath($RecoveryFile)
 $directory = [IO.Path]::GetDirectoryName($RecoveryFile)
